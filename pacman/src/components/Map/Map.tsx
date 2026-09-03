@@ -149,6 +149,9 @@ export default function Map() {
         released(game, i) &&
         sprite(gh.pos, `/ghosts/${GHOSTS[i].name}-${FACE[String(gh.dir)] ?? "up"}-${(game.t >> 1) & 1}.svg`, "sprite", GHOSTS[i].name),
       )}
+      <output aria-label="Score" className="fixed top-4 right-4 font-mono text-2xl text-white">
+        {game.score}
+      </output>
       <div
         role="img"
         aria-label="Pac-Man"

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
+import { FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
 
 test("walls block, open tiles pass", () => {
   assert.equal(step(1, 1, -1, 0), null); // into the top border
@@ -35,11 +35,16 @@ test("tick eats the dot it lands on; the cherry shows at each FRUIT_AT trigger a
 
   let g = tick({ ...NEW_GAME, pos: { row: 1, col: 1 } }, [0, 1]);
   assert.deepEqual([...g.eaten], ["1,2"]);
+  assert.equal(g.score, POINTS.pellet);
   assert.equal(fruitOut(g), false);
+  g = tick(g, [0, -1]); // back onto the power pellet at (1,1)
+  assert.equal(g.score, POINTS.pellet + POINTS.power);
+  assert.equal(tick(g, [0, 1]).score, g.score, "an eaten dot scores nothing");
 
-  g = grab({ ...g, eaten: dots(FRUIT_AT[0]) });
+  g = grab({ ...g, eaten: dots(FRUIT_AT[0]), score: 0 });
   assert.deepEqual(g.pos, FRUIT_SPAWN);
   assert.equal(g.fruitTaken, 1);
+  assert.equal(g.score, POINTS.cherry + POINTS.pellet, "cherry plus the dot under it");
   assert.equal(fruitOut(g), false, "second cherry waits for the next trigger");
 
   g = { ...g, eaten: dots(FRUIT_AT[1]) };

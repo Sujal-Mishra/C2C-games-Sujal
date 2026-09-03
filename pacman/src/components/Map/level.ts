@@ -61,6 +61,9 @@ export const DOTS = {
 export const FRUIT_SPAWN: Tile = { row: 17, col: 13 };
 export const FRUIT_AT = [70, 170];
 
+/** Arcade points. ponytail: ghost points (200/400/800/1600) come with frightened mode. */
+export const POINTS = { pellet: 10, power: 50, cherry: 100 };
+
 /**
  * Ghost house: the two 3x2 pockets inside the "2" — rows 11-12 (open to the
  * left via col 11) and rows 14-15 (open to the right via col 15). GHOST_SPAWN
@@ -143,6 +146,7 @@ export type Game = {
   fruitTaken: number;
   ghosts: Ghost[];
   t: number;
+  score: number;
 };
 
 export const NEW_GAME: Game = {
@@ -152,12 +156,17 @@ export const NEW_GAME: Game = {
   fruitTaken: 0,
   ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [] })),
   t: 0,
+  score: 0,
 };
 
 /** A cherry is on the board once the next trigger is reached and until it's taken. */
 export const fruitOut = (g: Game) => g.eaten.size >= (FRUIT_AT[g.fruitTaken] ?? Infinity);
 
-const DOT_KEYS = new Set([...DOTS.pellets, ...DOTS.power].map(key));
+/** Dot key -> points. */
+const DOT_KEYS = new Map([
+  ...DOTS.pellets.map((t) => [key(t), POINTS.pellet] as const),
+  ...DOTS.power.map((t) => [key(t), POINTS.power] as const),
+]);
 
 /** Arcade tie-break order when two directions are equally close to the target. */
 const DIRS: Dir[] = [[-1, 0], [0, -1], [1, 0], [0, 1]];
@@ -204,10 +213,13 @@ export function moveGhost(g: Ghost, target: Tile, flip = false): Ghost {
 export function tick(g: Game, want: Dir): Game {
   const { pos, dir } = advance(g.pos, want, g.dir);
   const k = key(pos);
-  const eaten = DOT_KEYS.has(k) && !g.eaten.has(k) ? new Set(g.eaten).add(k) : g.eaten;
-  const fruitTaken = g.fruitTaken + (fruitOut(g) && k === key(FRUIT_SPAWN) ? 1 : 0);
+  const dot = g.eaten.has(k) ? 0 : (DOT_KEYS.get(k) ?? 0);
+  const eaten = dot ? new Set(g.eaten).add(k) : g.eaten;
+  const fruit = fruitOut(g) && k === key(FRUIT_SPAWN);
+  const fruitTaken = g.fruitTaken + (fruit ? 1 : 0);
+  const score = g.score + dot + (fruit ? POINTS.cherry : 0);
   const t = g.t + 1;
-  const next = { ...g, pos, dir, eaten, fruitTaken, t };
+  const next = { ...g, pos, dir, eaten, fruitTaken, score, t };
   const flip = scatter(t) !== scatter(g.t);
   const ghosts = g.ghosts.map((gh, i) => {
     if (!gh.out && !released(next, i)) return gh;

@@ -19,6 +19,7 @@ export {
   DOTS,
   FRUIT_AT,
   FRUIT_SPAWN,
+  POINTS,
   GHOST_HOUSE,
   GHOST_SPAWN,
   GHOSTS,
