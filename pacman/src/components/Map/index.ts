@@ -53,6 +53,7 @@ export {
   GHOSTS,
   SPEED,
   TICK_MS,
+  TURN_BUFFER,
   NEW_GAME,
   PACMAN_SPAWN,
 } from "./level";

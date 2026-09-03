@@ -10,8 +10,9 @@
  * all of that — `window`, `setInterval`, `Audio`, `<canvas>` — is browser-only.
  * How: three hooks and two render helpers.
  *   - {@link useGame} owns the animation-frame loop that calls `tick` once per
- *     {@link TICK_MS} of real time and the `keydown` listener that sets the
- *     wanted direction.
+ *     {@link TICK_MS} of real time, and the keyboard listeners that decide what
+ *     direction the player is asking for on each of those ticks — a held key
+ *     asks until it's let go, a tap for {@link TURN_BUFFER} ticks after it.
  *   - {@link useSounds} diffs successive states and starts/stops audio off the
  *     changes.
  *   - `drawMaze`/`drawWall` render the walls once to a `<canvas>`.
@@ -38,6 +39,7 @@ import {
   MAZE_ROWS,
   NEW_GAME,
   TICK_MS,
+  TURN_BUFFER,
   cleared,
   fruitOut,
   isWall,
@@ -52,9 +54,11 @@ import {
 /**
  * The "not moving" direction, reused so identity comparisons work.
  *
- * Why: {@link useGame} checks `want.current === STOP` to detect the very first
- * key press (which triggers the opening jingle); that needs one shared
- * reference, not a fresh `[0, 0]` each time.
+ * Why: two jobs. {@link useGame} checks `want.current === STOP` to detect the
+ * very first key press (which triggers the opening jingle), and that needs one
+ * shared reference rather than a fresh `[0, 0]` each time; it's also what the
+ * loop hands {@link tick} once a press has aged out and no key is down, which
+ * `advance` reads as "nothing asked for" and answers by carrying straight on.
  * What: a frozen-by-convention {@link MovementDelta}.
  */
 const STOP: MovementDelta = [0, 0];
@@ -90,9 +94,12 @@ const MAX_CATCH_UP_MS = 4 * TICK_MS;
  * How: keyed by `e.key.toLowerCase()`; up/left/down/right map to the same
  * `[dRow, dCol]` unit vectors used everywhere else.
  * What: a `Record<string, Dir>`.
- * Used by: the `keydown` handler in {@link useGame}.
- * Design: both control schemes point at the *same* tuple objects — cheap, and
- * fine because directions are treated as immutable.
+ * Used by: the `keydown` handler in {@link useGame}, and its frame loop, which
+ * looks the newest still-held key back up here.
+ * Design: keyed by the lower-cased key name, so `held` can store key names and
+ * resolve them to directions later. The two schemes' tuples are equal but not
+ * identical objects; nothing compares them by identity ({@link STOP} is the
+ * only direction that gets an `===`).
  */
 const KEYS: Record<string, MovementDelta> = {
   arrowup: [-1, 0], w: [-1, 0],
@@ -169,42 +176,68 @@ const stopAll = () => {
  * Why: keep all the imperative, effectful machinery (interval, listener,
  * refs) in one place so the component body can be pure "state -> JSX".
  * How: `useState(NEW_GAME)` holds the current {@link Game}. `want` (a ref) is
- * the latest requested direction; `go` (a ref) gates the loop so ticking only
- * begins after the opening jingle. In a mount-once `useEffect`: a `keydown`
+ * the last requested direction and `pressed` when it was asked for; `go` (a
+ * ref) gates the loop so ticking only begins after the opening jingle. In a
+ * mount-once `useEffect`: `held` lists the movement keys currently down
+ * (oldest first) so the newest one can be asked for continuously; a `keydown`
  * handler maps the key via {@link KEYS}, and on the *first* key (`want.current
  * === STOP`) starts `opening_song.mp3`, flipping `go` true when it ends (or
- * immediately if audio is blocked); a `requestAnimationFrame` loop banks the
- * real time elapsed since the last frame (only once `go` is true, capped at
- * {@link MAX_CATCH_UP_MS}) and runs one `tick(g, want.current)` per
- * {@link TICK_MS} owed, in a single `setGame`. Cleanup removes both.
+ * immediately if audio is blocked); `keyup` drops the key from `held` and
+ * `blur` clears it (a key held while the tab loses focus never gets its
+ * `keyup`); a `requestAnimationFrame` loop banks the real time elapsed since
+ * the last frame (only once `go` is true, capped at {@link MAX_CATCH_UP_MS})
+ * and runs one `tick(g, asked)` per {@link TICK_MS} owed, in a single
+ * `setGame`. `asked` is the last press while it's younger than
+ * {@link TURN_BUFFER} ticks — so even a tap released within a frame is still
+ * asked for — then the newest key still held, else `STOP`. Cleanup removes all
+ * three listeners and the frame loop.
  * What: `() => Game`.
  * Used by: the {@link Map} component.
- * Design: refs (not state) for `want`/`go` because changing them must *not*
- * re-render — only the tick's `setGame` should. The loop reads `want.current`
- * live, so the newest direction always wins. A fixed-step accumulator rather
+ * Design: refs (not state) for `want`/`pressed`/`go` — and a plain closure
+ * variable for `held` — because a key going down or up must *not* re-render;
+ * only the tick's `setGame` should. The loop reads all of them live at frame
+ * time, so the newest direction always wins. A fixed-step accumulator rather
  * than `setInterval` because browsers round timer delays to whole milliseconds
  * (16.67 -> 16, i.e. 4% fast) and throttle them in hidden tabs; frames track
  * the display clock exactly and simply stop while the tab is hidden. The empty
- * dep array means one loop for the component's life.
+ * dep array means one loop for the component's life. Input is modelled on the
+ * cabinet's joystick rather than on keystrokes: a held key is a held stick
+ * (asking for that turn at every corner until let go), and a tap is a flick
+ * that the sim honours for {@link TURN_BUFFER} ticks — which is what lets a
+ * player turn a corner without hitting the exact frame. Expiry is measured in
+ * real time here, not ticks, because it's about the player's hands; the sim
+ * only ever sees the resulting direction.
  */
 function useGame() {
   const [game, setGame] = useState(NEW_GAME);
   const want = useRef(STOP);
+  const pressed = useRef(-Infinity); // performance.now() of the last press, for TURN_BUFFER
   const go = useRef(false);
 
   useEffect(() => {
+    const held: string[] = []; // movement keys still down, oldest first: the newest is what's being asked for
     const onKey = (e: KeyboardEvent) => {
-      const d = KEYS[e.key.toLowerCase()];
+      const k = e.key.toLowerCase();
+      const d = KEYS[k];
       if (!d) return;
       if (want.current === STOP) {
         const jingle = sound("opening_song.mp3");
         jingle.onended = () => (go.current = true);
         jingle.play().catch(() => (go.current = true)); // audio blocked: just start
       }
+      if (!held.includes(k)) held.push(k); // key repeat fires keydown over and over while held
       want.current = d;
+      pressed.current = performance.now();
       e.preventDefault();
     };
+    const onUp = (e: KeyboardEvent) => {
+      const i = held.indexOf(e.key.toLowerCase());
+      if (i >= 0) held.splice(i, 1);
+    };
+    const onBlur = () => (held.length = 0); // a key held while the tab loses focus never fires keyup
     window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
     // Fixed-step loop: bank real elapsed time and run one tick per TICK_MS of it. Browsers truncate
     // timers to whole ms (a 16.67ms interval fires every 16ms), so an interval would run 4% fast.
     let raf = 0, last = performance.now(), owed = 0;
@@ -214,11 +247,19 @@ function useGame() {
       last = now;
       const n = Math.floor(owed / TICK_MS);
       owed -= n * TICK_MS;
-      if (n) setGame((g) => { for (let i = 0; i < n; i++) g = tick(g, want.current); return g; });
+      if (!n) return;
+      // The newest press wins for TURN_BUFFER ticks — long enough to reach the corner it was meant for —
+      // then whatever key is still down takes over (a held key asks for its turn at every corner).
+      const asked = now - pressed.current < TURN_BUFFER * TICK_MS ? want.current
+        : held.length ? KEYS[held[held.length - 1]]
+        : STOP;
+      setGame((g) => { for (let i = 0; i < n; i++) g = tick(g, asked); return g; });
     };
     raf = requestAnimationFrame(frame);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
       cancelAnimationFrame(raf);
     };
   }, []);

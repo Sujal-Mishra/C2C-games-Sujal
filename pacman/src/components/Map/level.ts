@@ -320,6 +320,8 @@ const FULL = (75.7576 / 8) * (TICK_MS / 1000) * PACE;
  * Pac-Man is quick, and Blinky becomes "Cruise Elroy" near the end.
  * What, per field:
  *  - `pacman` / `pacmanFright`: Pac-Man normally / while ghosts are frightened.
+ *    Both are scaled by {@link PACMAN_BOOST} before use; the values here stay
+ *    the arcade's.
  *  - `ghost`: any ghost on the open maze (also used while leaving the house).
  *  - `tunnel`: a ghost within {@link TUNNEL_REACH} tiles of a teleport; Pac-Man
  *    is unaffected. Overrides everything but `eyes`.
@@ -350,6 +352,56 @@ export const SPEED = {
  * Percent of full speed -> tiles per tick.
  */
 const rate = (pct: number) => (pct / 100) * FULL;
+
+/**
+ * Pac-Man's own speed multiplier, on top of his {@link SPEED} percentages.
+ *
+ * Why: at the Dossier's 80% he reads as sluggish on this board — the tiles are
+ * big and the corridors short, so a tile-step takes a beat longer than the eye
+ * expects. 7% is enough to feel responsive.
+ * How: kept separate from {@link SPEED} so that table stays a faithful copy of
+ * the arcade's and this stays a visible, revertable decision — the same
+ * reasoning as {@link PACE}, but for the player alone: the ghosts keep their
+ * arcade speeds, so this also widens the gap he can open on a chaser.
+ * Used by: {@link pacmanRate}, and so both places his speed is banked.
+ */
+const PACMAN_BOOST = 1.07;
+
+/**
+ * Tiles per tick for Pac-Man: {@link rate} with {@link PACMAN_BOOST} applied.
+ *
+ * Used by: {@link TILE_TICKS} and {@link tick}. Ghosts use plain {@link rate}.
+ */
+const pacmanRate = (pct: number) => rate(pct) * PACMAN_BOOST;
+
+/**
+ * Ticks Pac-Man takes to cross one dotted tile: the time to bank a whole tile
+ * at his normal speed, plus the frame he stops for on the pellet.
+ *
+ * Used by: {@link TURN_BUFFER}, which is measured in tiles of travel — so the
+ * buffer tracks {@link PACMAN_BOOST} instead of drifting out of step with it.
+ */
+const TILE_TICKS = 1 / pacmanRate(SPEED.pacman) + SPEED.stall[POINTS.pellet];
+
+/**
+ * How long (in ticks) a tapped direction stays live, waiting for a turn to
+ * open up.
+ *
+ * Why: Pac-Man only changes direction on a tile boundary, and those are
+ * {@link TILE_TICKS} (~12 frames) apart — asking the player to hit the key on
+ * the exact frame he reaches the corner would be miserable. So a press is
+ * remembered for a moment and taken at the first boundary that allows it.
+ * *Holding* the key asks indefinitely (see `useGame` in `Map.tsx`); this
+ * window is for a tap.
+ * How: two tiles of travel. A turn is decided as he *leaves* a tile, so a
+ * press made anywhere along the tile before a corner has to survive up to two
+ * boundaries to be taken — that's the two. Beyond it the press is dropped, so
+ * he carries straight on instead of veering down some corridor the player
+ * asked for half a second ago.
+ * Used by: `useGame` in `Map.tsx`, which stops handing an expired press to
+ * {@link tick}.
+ */
+export const TURN_BUFFER = Math.ceil(2 * TILE_TICKS);
 
 /**
  * How far (in tiles, along the row) from a teleport mouth a ghost is still
@@ -462,12 +514,27 @@ export function step(
  * Why: arcade Pac-Man doesn't stop-and-turn — he keeps going until the wanted
  * turn opens up, then takes it instantly, and if nothing's open he stops but
  * keeps facing the way he was headed. This encodes that feel.
+ * How: `on` is where carrying straight on lands (`null` if that's a wall).
+ * `want` is only taken if it's a real direction, {@link step} finds the tile
+ * that way open, and it isn't a straight reversal — so he changes direction
+ * only where the maze actually offers a turn, and never doubles back
+ * mid-corridor. Anything else carries on along `dir`, staying put if `on` is
+ * `null`. A `want` of `[0, 0]` means "nothing asked for" (no key yet, or the
+ * press aged out — see {@link TURN_BUFFER}) and falls through to the same
+ * carry-on.
  * Used by: {@link tick}, once per tick, for Pac-Man.
+ * Design: refusing the reversal is stricter than the arcade, where a 180° is
+ * always legal. The one exception is when `on` is `null` — nose against a wall
+ * and going nowhere — because a player who has just run into a wall and asks
+ * to go back is owed an answer; anywhere else he's moving, so "only at a turn"
+ * still holds.
  */
 export function advance(pos: Tile, want: MovementDelta, dir: MovementDelta): { pos: Tile; dir: MovementDelta } {
-  const turned = step(pos.row, pos.col, ...want);
+  const on = step(pos.row, pos.col, ...dir);
+  const back = want[0] === -dir[0] && want[1] === -dir[1];
+  const turned = (want[0] || want[1]) && (!back || !on) ? step(pos.row, pos.col, ...want) : null;
   if (turned) return { pos: turned, dir: want };
-  return { pos: step(pos.row, pos.col, ...dir) ?? pos, dir };
+  return { pos: on ?? pos, dir };
 }
 
 /**
@@ -844,7 +911,10 @@ function met(before: Game, after: Game, i: number): boolean {
  *     `bite` freeze. A `normal`, `out` ghost is a death: decrement `lives`,
  *     record `since`, put everyone back on their start tiles, and zero the
  *     clocks/timers (dots and score persist).
- * What: a pure `(Game, want: Dir) => Game`.
+ * What: a pure `(Game, want: Dir) => Game`, where `want` is the direction the
+ * player is asking for on this tick and `[0, 0]` is "nothing asked for" — how
+ * long a press keeps asking is the view layer's business (see
+ * {@link TURN_BUFFER}).
  * Used by: `Map.tsx`'s frame loop (`setGame(g => tick(g, want.current))`, once per {@link TICK_MS} elapsed).
  * Design: one big function, top-to-bottom, spreading a fresh object at each
  * stage rather than mutating — the ordering (eat, then move ghosts, then check
@@ -854,7 +924,7 @@ function met(before: Game, after: Game, i: number): boolean {
 export function tick(g: Game, want: MovementDelta): Game {
   if (!g.lives || cleared(g)) return g; // game over or completed
   if (g.bite) return { ...g, bite: g.bite.left > 1 ? { ...g.bite, left: g.bite.left - 1 } : null }; // everything freezes, fright clock included
-  const pace = rate(g.fright ? SPEED.pacmanFright : SPEED.pacman);
+  const pace = pacmanRate(g.fright ? SPEED.pacmanFright : SPEED.pacman);
   let acc = g.acc + pace, pos = g.pos, dir = g.dir;
   if (acc >= 1) {
     ({ pos, dir } = advance(g.pos, want, g.dir));
