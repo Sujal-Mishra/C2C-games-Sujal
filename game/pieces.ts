@@ -1,5 +1,6 @@
-import { Bodies, Body } from "matter-js";
 import type { QuarterTurn, ShapeType } from "./types";
+import type { Body } from "matter-js";
+import { createPhysicsBody } from "./physics";
 
 export interface PieceStyle {
   fill: string;
@@ -9,16 +10,11 @@ export interface PieceStyle {
 }
 
 export const PIECE_STYLES: Record<ShapeType, PieceStyle> = {
-  logo: { fill: "#2c2c2c", stroke: "#f4b8d0", accent: "#d37fa2", size: 47 },
-  blossom: { fill: "#d37fa2", stroke: "#fbe2ec", accent: "#ffffff", size: 43 }
-};
-
-const MATERIAL = {
-  friction: 0.85,
-  frictionStatic: 1,
-  restitution: 0.08,
-  frictionAir: 0.018,
-  density: 0.0014
+  logo: { fill: "#2c2c2c", stroke: "#f4b8d0", accent: "#d37fa2", size: 42 },
+  blossom: { fill: "#d37fa2", stroke: "#fbe2ec", accent: "#ffffff", size: 42 },
+  origami: { fill: "#d99a63", stroke: "#fbe2ec", accent: "#fff0dc", size: 42 },
+  lantern: { fill: "#e56f8f", stroke: "#ffd4df", accent: "#ffe3a8", size: 42 },
+  butterfly: { fill: "#8da9dc", stroke: "#e5edff", accent: "#f5b3cf", size: 42 }
 };
 
 export function createPieceBody(
@@ -27,25 +23,5 @@ export function createPieceBody(
   y: number,
   turn: QuarterTurn
 ): Body {
-  const style = PIECE_STYLES[type];
-  const options = {
-    ...MATERIAL,
-    label: `piece:${type}`,
-    render: {
-      fillStyle: style.fill,
-      strokeStyle: style.stroke,
-      lineWidth: 4
-    },
-    plugin: { shapeType: type }
-  };
-
-  let body: Body;
-  if (type === "logo") {
-    body = Bodies.polygon(x, y, 6, style.size, options);
-  } else {
-    body = Bodies.circle(x, y, style.size, options);
-  }
-
-  Body.setAngle(body, turn * (Math.PI / 2));
-  return body;
+  return createPhysicsBody(type, x, y, turn);
 }

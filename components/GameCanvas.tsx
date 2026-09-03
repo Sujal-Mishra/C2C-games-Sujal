@@ -305,7 +305,8 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         {sprites.map((sprite) => (
           <img
             key={sprite.id}
-            src={`/assets/${sprite.type === "logo" ? "c2c-logo" : "blossom"}.svg`}
+            data-piece-id={sprite.id}
+            src={`/assets/${sprite.type === "logo" ? "c2c-logo" : sprite.type}.svg`}
             alt={sprite.isActive ? `Current ${sprite.type} piece` : ""}
             className="physics-piece"
             style={{

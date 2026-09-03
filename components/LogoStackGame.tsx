@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { gsap } from "gsap";
 import { GameCanvas, type GameCanvasHandle } from "./GameCanvas";
 import { GameHud } from "./GameHud";
 import { GameMenu } from "./GameMenu";
@@ -18,6 +19,7 @@ import type { GamePhase, QuarterTurn, ShapeType } from "@/game/types";
 
 export function LogoStackGame() {
   const canvasRef = useRef<GameCanvasHandle>(null);
+  const petalsRef = useRef<HTMLDivElement>(null);
   const scoreStoreRef = useRef(createLocalScoreStore());
   const livesRef = useRef(INITIAL_LIVES);
   const [score, setScore] = useState(0);
@@ -99,6 +101,18 @@ export function LogoStackGame() {
   }, []);
 
   useEffect(() => {
+    const petals = petalsRef.current?.querySelectorAll("i");
+    if (!petals || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = gsap.context(() => {
+      gsap.set(petals, { y: -40, x: 0, opacity: 0, rotation: 0 });
+      petals.forEach((petal, index) => {
+        gsap.to(petal, { y: "105vh", x: `random(-90, 90)`, rotation: `random(-240, 240)`, opacity: `random(.25, .85)`, duration: `random(7, 13)`, delay: index * .35, repeat: -1, ease: "none" });
+      });
+    }, petalsRef);
+    return () => ctx.revert();
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       if (event.key === "Escape" && !ended) {
@@ -125,7 +139,10 @@ export function LogoStackGame() {
 
   return (
     <main className="game-page">
+      <div className="tree-background" aria-hidden="true"><img src="/assets/cherry-blossom.svg" alt="" /></div>
+      <div ref={petalsRef} className="ambient-petals" aria-hidden="true">{Array.from({ length: 22 }, (_, index) => <i key={index} />)}</div>
       <section className="game-layout" id="game">
+        <div className="game-stage">
         <div className="game-board-wrap">
           <div className="canvas-frame">
             <GameCanvas
@@ -143,6 +160,8 @@ export function LogoStackGame() {
           </div>
           <GameHud score={score} lives={lives} />
         </div>
+        </div>
+
       </section>
 
       {menuOpen && <GameMenu onClose={() => setMenuOpen(false)} onRetry={restart} />}
