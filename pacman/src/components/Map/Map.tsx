@@ -143,13 +143,21 @@ export default function Map() {
       {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}
       {game.ghosts.map((gh, i) => {
         const frame = (game.t >> 1) & 1;
-        const src = !game.fright
-          ? `${GHOSTS[i].name}-${FACE[String(gh.dir)] ?? "up"}-${frame}`
-          : game.fright <= FRIGHT.flash && game.t & 1
-            ? `scared-white-${frame}`
-            : `scared-${frame}`;
-        return released(game, i) && sprite(gh.pos, `/ghosts/${src}.svg`, "sprite", GHOSTS[i].name);
+        const face = FACE[String(gh.dir)] ?? "up";
+        const src =
+          gh.mode === "eyes" ? `eyes-${face}`
+          : gh.mode === "normal" ? `${GHOSTS[i].name}-${face}-${frame}`
+          : game.fright <= FRIGHT.flash && game.t & 1 ? `scared-white-${frame}`
+          : `scared-${frame}`;
+        // The ghost just eaten stays hidden behind its points during the freeze.
+        const hidden = game.bite && gh.mode === "eyes" && key(gh.pos) === key(game.bite.pos);
+        return released(game, i) && !hidden && sprite(gh.pos, `/ghosts/${src}.svg`, "sprite", GHOSTS[i].name);
       })}
+      {game.bite && (
+        <span className="sprite grid place-items-center font-arcade text-[#33ffff] text-[length:calc(var(--maze-cell)/2.5)]" style={at(game.bite.pos)}>
+          {game.bite.points}
+        </span>
+      )}
       <output aria-label="Score" className="absolute right-0 bottom-full pb-2 font-mono text-2xl text-white">
         {game.score}
       </output>
@@ -157,6 +165,7 @@ export default function Map() {
         role="img"
         aria-label="Pac-Man"
         className="sprite pacman"
+        hidden={!!game.bite}
         style={{
           ...at(pos),
           // Sprite faces right at 0deg; atan2 turns [dRow, dCol] into that heading.

@@ -62,7 +62,7 @@ export const FRUIT_SPAWN: Tile = { row: 17, col: 13 };
 export const FRUIT_AT = [70, 170];
 
 /** Arcade points. ponytail: ghost points (200/400/800/1600) come with frightened mode. */
-export const POINTS = { pellet: 10, power: 50, cherry: 100 };
+export const POINTS = { pellet: 10, power: 50, cherry: 100, ghost: 200 };
 /** Three Pac-Men per game; one bonus life at 10,000 points. The cherry is points only. */
 export const LIVES = 3;
 export const EXTRA_LIFE_AT = 10_000;
@@ -144,8 +144,11 @@ export function advance(pos: Tile, want: Dir, dir: Dir): { pos: Tile; dir: Dir }
   return { pos: step(pos.row, pos.col, ...dir) ?? pos, dir };
 }
 
-/** `out`: has left the ghost house. `trail`: keys of the last few tiles, avoided so 2-wide corridors don't trap it in a loop. */
-export type Ghost = { pos: Tile; dir: Dir; out: boolean; trail: string[] };
+/**
+ * `out`: has left the ghost house. `trail`: keys of the last few tiles, avoided so 2-wide corridors don't trap it in a loop.
+ * `mode`: `scared` after a power pellet, `eyes` once eaten (running home to regenerate).
+ */
+export type Ghost = { pos: Tile; dir: Dir; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes" };
 /** `eaten` holds dot keys; `fruitTaken` counts cherries collected so far; `t` is the tick count. */
 export type Game = {
   pos: Tile;
@@ -163,6 +166,10 @@ export type Game = {
   since: number;
   /** The 10,000-point life has been awarded. */
   bonus: boolean;
+  /** Ghosts eaten on the current power pellet: 200, 400, 800, 1600. */
+  combo: number;
+  /** A ghost was just eaten: the board freezes for `left` ticks showing `points` at `pos`. */
+  bite: { pos: Tile; points: number; left: number } | null;
 };
 
 export const NEW_GAME: Game = {
@@ -170,13 +177,15 @@ export const NEW_GAME: Game = {
   dir: [0, 0],
   eaten: new Set(),
   fruitTaken: 0,
-  ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [] })),
+  ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [], mode: "normal" })),
   t: 0,
   score: 0,
   fright: 0,
   lives: LIVES,
   since: 0,
   bonus: false,
+  combo: 0,
+  bite: null,
 };
 
 /** A cherry is on the board once the next trigger is reached and until it's taken. */
@@ -229,15 +238,45 @@ export function moveGhost(g: Ghost, target: Tile | null, flip = false): Ghost {
       if (c === open[0] || better) best = c;
     }
   const trail = [key(g.pos), ...g.trail].slice(0, TRAIL);
-  return { pos: best.pos, dir: best.dir, out: g.out || !house(best.pos), trail };
+  return { ...g, pos: best.pos, dir: best.dir, out: g.out || !house(best.pos), trail };
+}
+
+/** Next tile on a shortest path (BFS, house allowed). ponytail: greedy steering loops on this map's side-opening house, so eyes path-find. */
+function towards(from: Tile, to: Tile): Tile | null {
+  const prev = new Map<string, Tile | null>([[key(from), null]]);
+  const queue = [from];
+  for (let i = 0; i < queue.length; i++) {
+    const t = queue[i];
+    if (key(t) === key(to)) {
+      let cur = t, back: Tile | null | undefined;
+      while ((back = prev.get(key(cur))) && key(back) !== key(from)) cur = back;
+      return cur;
+    }
+    for (const d of DIRS) {
+      const n = step(t.row, t.col, d[0], d[1], true);
+      if (n && !prev.has(key(n))) { prev.set(key(n), t); queue.push(n); }
+    }
+  }
+  return null;
+}
+
+/** Eyes run home at double speed and regenerate on their start tile, leaving the house again unfrightened. */
+function goHome(gh: Ghost, i: number): Ghost {
+  for (let n = 0; n < 2; n++) {
+    if (key(gh.pos) === key(GHOSTS[i].tile)) return { ...gh, mode: "normal", out: false, trail: [] };
+    const pos = towards(gh.pos, GHOSTS[i].tile) ?? gh.pos;
+    gh = { ...gh, pos, dir: [Math.sign(pos.row - gh.pos.row), Math.sign(pos.col - gh.pos.col)] };
+  }
+  return gh;
 }
 
 /** Arcade collision: same tile as an unfrightened ghost. ponytail: swapping tiles in one tick passes through, as the arcade does. */
-const caught = (g: Game) => !g.fright && g.ghosts.some((gh) => gh.out && key(gh.pos) === key(g.pos));
+const caught = (g: Game) => g.ghosts.some((gh) => gh.out && gh.mode === "normal" && key(gh.pos) === key(g.pos));
 
-/** One tick: move Pac-Man, eat whatever he landed on, move the ghosts, then check for a death. */
+/** One tick: move Pac-Man, eat whatever he landed on, move the ghosts, then check for a bite or a death. */
 export function tick(g: Game, want: Dir): Game {
   if (!g.lives) return g; // game over
+  if (g.bite) return { ...g, bite: g.bite.left > 1 ? { ...g.bite, left: g.bite.left - 1 } : null }; // everything freezes, fright clock included
   const { pos, dir } = advance(g.pos, want, g.dir);
   const k = key(pos);
   const dot = g.eaten.has(k) ? 0 : (DOT_KEYS.get(k) ?? 0);
@@ -250,16 +289,25 @@ export function tick(g: Game, want: Dir): Game {
   const t = g.t + 1;
   const power = dot === POINTS.power;
   const fright = power ? FRIGHT.ticks : Math.max(0, g.fright - 1);
-  const next = { ...g, pos, dir, eaten, fruitTaken, score, bonus, lives, t, fright };
+  const next = { ...g, pos, dir, eaten, fruitTaken, score, bonus, lives, t, fright, combo: power ? 0 : g.combo };
   // A power pellet, like a mode switch, turns every ghost around. ponytail: the mode timer keeps running while frightened.
   const flip = scatter(t) !== scatter(g.t) || power;
   const ghosts = g.ghosts.map((gh, i) => {
+    if (gh.mode === "eyes") return goHome(gh, i);
+    const scared = power || (gh.mode === "scared" && fright > 0);
+    gh = { ...gh, mode: scared ? "scared" : "normal" };
     if (!gh.out && !released(next, i)) return gh;
-    if (fright && !power && t % 2) return gh; // frightened ghosts crawl at half speed
-    const target = !gh.out ? GHOSTS[i].door : fright ? null : scatter(t) ? GHOSTS[i].corner : TARGET[i](next);
+    if (scared && !power && t % 2) return gh; // frightened ghosts crawl at half speed
+    const target = !gh.out ? GHOSTS[i].door : scared ? null : scatter(t) ? GHOSTS[i].corner : TARGET[i](next);
     return moveGhost(gh, target, flip);
   });
   const after = { ...next, ghosts };
+  const bit = ghosts.findIndex((gh) => gh.mode === "scared" && key(gh.pos) === k);
+  if (bit >= 0) {
+    const points = POINTS.ghost << g.combo;
+    const eyes = ghosts.map((gh, i) => (i === bit ? { ...gh, mode: "eyes" as const } : gh));
+    return { ...after, ghosts: eyes, score: score + points, combo: g.combo + 1, bite: { pos, points, left: SEC } };
+  }
   if (!caught(after)) return after;
   // Death: everyone back to their start tiles, mode clock and fright reset; dots and score stay.
   return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, fright: 0 };

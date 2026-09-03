@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EXTRA_LIFE_AT, FRIGHT, FRUIT_AT, FRUIT_SPAWN, LIVES, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
+import { EXTRA_LIFE_AT, FRIGHT, FRUIT_AT, FRUIT_SPAWN, LIVES, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Dir, type Ghost } from "./level.ts";
 
 test("walls block, open tiles pass", () => {
   assert.equal(step(1, 1, -1, 0), null); // into the top border
@@ -68,7 +68,7 @@ test("scatter/chase follows the level-1 schedule", () => {
 
 test("ghost picks the closest open tile and never reverses", () => {
   // (1,1): up/left are walls; right (1,2) is closer to (1,5) than down (2,1).
-  const g = moveGhost({ pos: { row: 1, col: 1 }, dir: [0, 0], out: true, trail: [] }, { row: 1, col: 5 });
+  const g = moveGhost({ pos: { row: 1, col: 1 }, dir: [0, 0], out: true, trail: [], mode: "normal" }, { row: 1, col: 5 });
   assert.deepEqual(g.pos, { row: 1, col: 2 });
   // heading right at (1,2) with the target behind: reverse is banned, so keep going right.
   const h = moveGhost(g, { row: 1, col: 0 });
@@ -77,7 +77,7 @@ test("ghost picks the closest open tile and never reverses", () => {
 
 test("a ghost circling a 2x2 block breaks out via its trail", () => {
   // Scatter target top-right from the 2-wide corridor left of the house: pure greedy loops here.
-  let g: Ghost = { pos: { row: 11, col: 11 }, dir: [0, -1], out: true, trail: [] };
+  let g: Ghost = { pos: { row: 11, col: 11 }, dir: [0, -1], out: true, trail: [], mode: "normal" };
   const seen = new Set<string>();
   for (let i = 0; i < 12; i++) {
     g = moveGhost(g, { row: 0, col: 26 });
@@ -98,10 +98,11 @@ test("ghosts leave the house in release order and stay off walls", () => {
 
 test("a power pellet frightens the ghosts: reverse, wander at half speed, time out", () => {
   // Ghost heading up at (4,1); Pac-Man steps left from (1,2) onto the power pellet at (1,1).
-  const blinky: Ghost = { pos: { row: 4, col: 1 }, dir: [-1, 0], out: true, trail: [] };
+  const blinky: Ghost = { pos: { row: 4, col: 1 }, dir: [-1, 0], out: true, trail: [], mode: "normal" };
   let g = tick({ ...NEW_GAME, pos: { row: 1, col: 2 }, ghosts: [blinky, ...NEW_GAME.ghosts.slice(1)] }, [0, -1]);
   assert.equal(g.fright, FRIGHT.ticks);
   assert.notDeepEqual(g.ghosts[0].pos, { row: 3, col: 1 }, "reversed, so not carrying on up");
+  g = { ...g, pos: { row: 25, col: 13 } }; // out of the wanderer's reach, so it can't get eaten
 
   for (let i = 1; i < FRIGHT.ticks; i++) {
     const before = g.ghosts[0].pos;
@@ -115,7 +116,7 @@ test("a power pellet frightens the ghosts: reverse, wander at half speed, time o
 
 test("an unfrightened ghost on Pac-Man's tile costs a life and resets the board, not the dots", () => {
   // Blinky heads left from (1,3), Pac-Man right from (1,1): both land on (1,2).
-  const blinky: Ghost = { pos: { row: 1, col: 3 }, dir: [0, -1], out: true, trail: [] };
+  const blinky: Ghost = { pos: { row: 1, col: 3 }, dir: [0, -1], out: true, trail: [], mode: "normal" };
   const start = { ...NEW_GAME, pos: { row: 1, col: 1 }, eaten: new Set(["9,9"]), ghosts: [blinky, ...NEW_GAME.ghosts.slice(1)], t: 50 };
   let g = tick(start, [0, 1]);
   assert.equal(g.lives, LIVES - 1);
@@ -125,7 +126,8 @@ test("an unfrightened ghost on Pac-Man's tile costs a life and resets the board,
   assert.equal(g.since, 2, "dots eaten so far, for the after-death release table");
   assert.ok(g.eaten.has("9,9") && g.eaten.has("1,2"), "dots stay eaten");
 
-  assert.equal(tick({ ...start, fright: 5 }, [0, 1]).lives, LIVES, "frightened ghosts don't kill");
+  const eyes = { ...start, ghosts: [{ ...blinky, mode: "eyes" as const }, ...start.ghosts.slice(1)] };
+  assert.equal(tick(eyes, [0, 1]).lives, LIVES, "eyes don't kill");
 
   g = tick({ ...start, lives: 1 }, [0, 1]);
   assert.equal(g.lives, 0);
@@ -137,4 +139,35 @@ test("one extra life at 10,000 points", () => {
   assert.equal(g.lives, LIVES + 1);
   g = tick(g, [0, 1]);
   assert.equal(g.lives, LIVES + 1, "only once");
+});
+
+test("eating a scared ghost: 200/400 combo, one-second freeze, eyes run home and regenerate", () => {
+  // Same head-on meeting as the death test, but Blinky is scared.
+  const blinky: Ghost = { pos: { row: 1, col: 3 }, dir: [0, -1], out: true, trail: [], mode: "scared" };
+  const pinky: Ghost = { ...blinky, pos: { row: 2, col: 3 }, dir: [-1, 0] };
+  const start = { ...NEW_GAME, pos: { row: 1, col: 1 }, ghosts: [blinky, pinky, ...NEW_GAME.ghosts.slice(2)], fright: 20, t: 1 };
+  let g = tick(start, [0, 1]);
+  assert.equal(g.lives, LIVES);
+  assert.equal(g.score, NEW_GAME.score + POINTS.pellet + POINTS.ghost);
+  assert.equal(g.ghosts[0].mode, "eyes");
+  assert.deepEqual(g.bite, { pos: { row: 1, col: 2 }, points: POINTS.ghost, left: 5 });
+
+  const frozen = g;
+  for (let i = 0; i < 5; i++) g = tick(g, [0, 1]);
+  assert.equal(g.bite, null);
+  assert.deepEqual([g.pos, g.ghosts, g.fright, g.t], [frozen.pos, frozen.ghosts, frozen.fright, frozen.t], "nothing moves while frozen");
+
+  // Keep the others in the house meanwhile so a wandering scared ghost can't bump into Pac-Man.
+  for (let i = 0; i < 40 && g.ghosts[0].mode === "eyes"; i++) {
+    g = tick(g, [0, 0]);
+    g = { ...g, ghosts: [g.ghosts[0], ...NEW_GAME.ghosts.slice(1)] };
+  }
+  assert.equal(g.ghosts[0].mode, "normal", "eyes are home and regenerated");
+  assert.equal(g.ghosts[0].out, false);
+
+  // Pinky, still scared, is the second ghost of this pellet: 400.
+  const again = { ...g, pos: { row: 1, col: 1 }, ghosts: [g.ghosts[0], { ...pinky, pos: { row: 1, col: 3 }, dir: [0, -1] as Dir }, ...g.ghosts.slice(2)], fright: 20 };
+  assert.equal(tick(again, [0, 1]).score - again.score, 2 * POINTS.ghost);
+  // A new power pellet restarts the combo.
+  assert.equal(tick({ ...again, pos: { row: 1, col: 2 }, ghosts: [g.ghosts[0], { ...pinky, pos: { row: 1, col: 0 }, dir: [0, 1] as Dir }, ...g.ghosts.slice(2)] }, [0, -1]).combo, 0);
 });
