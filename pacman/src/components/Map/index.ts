@@ -10,15 +10,20 @@ export {
   step,
   advance,
   tick,
+  moveGhost,
+  scatter,
   tilesOf,
   key,
   fruitOut,
+  released,
   DOTS,
   FRUIT_AT,
   FRUIT_SPAWN,
   GHOST_HOUSE,
   GHOST_SPAWN,
+  GHOSTS,
+  TICK_MS,
   NEW_GAME,
   PACMAN_SPAWN,
 } from "./level";
-export type { CellCode, Dir, Game, Tile } from "./level";
+export type { CellCode, Dir, Game, Ghost, Tile } from "./level";

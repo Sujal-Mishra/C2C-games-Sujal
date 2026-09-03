@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, advance, fruitOut, step, tick } from "./level.ts";
+import { FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
 
 test("walls block, open tiles pass", () => {
   assert.equal(step(1, 1, -1, 0), null); // into the top border
@@ -47,4 +47,46 @@ test("tick eats the dot it lands on; the cherry shows at each FRUIT_AT trigger a
   g = grab(g);
   assert.equal(g.fruitTaken, 2);
   assert.equal(fruitOut(g), false, "no third cherry");
+});
+
+test("pac-man can't enter the ghost house", () => {
+  assert.equal(step(11, 11, 0, 1), null);
+});
+
+test("scatter/chase follows the level-1 schedule", () => {
+  assert.equal(scatter(0), true);
+  assert.equal(scatter(34), true);
+  assert.equal(scatter(35), false);
+  assert.equal(scatter(135), true);
+  assert.equal(scatter(1e6), false, "chase forever at the end");
+});
+
+test("ghost picks the closest open tile and never reverses", () => {
+  // (1,1): up/left are walls; right (1,2) is closer to (1,5) than down (2,1).
+  const g = moveGhost({ pos: { row: 1, col: 1 }, dir: [0, 0], out: true, trail: [] }, { row: 1, col: 5 });
+  assert.deepEqual(g.pos, { row: 1, col: 2 });
+  // heading right at (1,2) with the target behind: reverse is banned, so keep going right.
+  const h = moveGhost(g, { row: 1, col: 0 });
+  assert.deepEqual(h.pos, { row: 1, col: 3 });
+});
+
+test("a ghost circling a 2x2 block breaks out via its trail", () => {
+  // Scatter target top-right from the 2-wide corridor left of the house: pure greedy loops here.
+  let g: Ghost = { pos: { row: 11, col: 11 }, dir: [0, -1], out: true, trail: [] };
+  const seen = new Set<string>();
+  for (let i = 0; i < 12; i++) {
+    g = moveGhost(g, { row: 0, col: 26 });
+    seen.add(`${g.pos.row},${g.pos.col}`);
+  }
+  assert.ok(seen.size > 4, `stuck on ${[...seen].join(" ")}`);
+});
+
+test("ghosts leave the house in release order and stay off walls", () => {
+  let g = NEW_GAME;
+  for (let i = 0; i < 20; i++) g = tick(g, [0, 0]);
+  assert.deepEqual(g.ghosts.map((x) => x.out), [true, true, false, false], "inky/clyde wait for dots");
+  for (const x of g.ghosts) assert.notEqual(MAZE[x.pos.row][x.pos.col], 2);
+  g = { ...g, eaten: new Set(Array.from({ length: 60 }, (_, i) => `d${i}`)) };
+  for (let i = 0; i < 20; i++) g = tick(g, [0, 0]);
+  assert.deepEqual(g.ghosts.map((x) => x.out), [true, true, true, true]);
 });

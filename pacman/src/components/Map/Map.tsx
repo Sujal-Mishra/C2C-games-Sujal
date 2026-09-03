@@ -5,13 +5,16 @@ import {
   CELL,
   DOTS,
   FRUIT_SPAWN,
+  GHOSTS,
   MAZE,
   MAZE_COLS,
   MAZE_ROWS,
   NEW_GAME,
+  TICK_MS,
   fruitOut,
   isWall,
   key,
+  released,
   tick,
   type Dir,
   type Tile,
@@ -24,7 +27,6 @@ const KEYS: Record<string, Dir> = {
   arrowleft: [0, -1], a: [0, -1],
   arrowright: [0, 1], d: [0, 1],
 };
-const TICK_MS = 200; // ms per tile: bigger = slower
 
 /** Game state, advanced on a fixed tick; the arrow keys / WASD set where Pac-Man wants to go. */
 function useGame() {
@@ -55,8 +57,10 @@ const at = (t: Tile) => ({
   left: `calc(${t.col} * var(--maze-cell))`,
 });
 
-const sprite = (t: Tile, src: string, className = "sprite") => (
-  <div key={key(t)} className={className} style={{ ...at(t), backgroundImage: `url(${src})` }} />
+const FACE: Record<string, string> = { "-1,0": "up", "1,0": "down", "0,-1": "left", "0,1": "right" };
+
+const sprite = (t: Tile, src: string, className = "sprite", k = key(t)) => (
+  <div key={k} className={className} style={{ ...at(t), backgroundImage: `url(${src})` }} />
 );
 
 /** Arcade tile size. The board is drawn at this resolution and upscaled with `image-rendering: pixelated`. */
@@ -141,6 +145,10 @@ export default function Map() {
       {DOTS.pellets.filter(left).map((t) => sprite(t, "/pellet.svg", "sprite pellet"))}
       {DOTS.power.filter(left).map((t) => sprite(t, "/power-pellet.svg", "sprite power"))}
       {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}
+      {game.ghosts.map((gh, i) =>
+        released(game, i) &&
+        sprite(gh.pos, `/ghosts/${GHOSTS[i].name}-${FACE[String(gh.dir)] ?? "up"}-${(game.t >> 1) & 1}.svg`, "sprite", GHOSTS[i].name),
+      )}
       <div
         role="img"
         aria-label="Pac-Man"
