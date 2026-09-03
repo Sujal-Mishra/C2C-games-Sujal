@@ -195,9 +195,17 @@ export default function Map() {
           : gh.mode === "normal" ? `${GHOSTS[i].name}-${face}-${frame}`
           : game.fright <= FRIGHT.flash && game.t & 1 ? `scared-white-${frame}`
           : `scared-${frame}`;
+        const { name } = GHOSTS[i];
+        if (!released(game, i)) {
+          // Waiting in the house: bob half a tile towards the pocket's other row and back, facing the way it goes.
+          const down = MAZE[gh.pos.row + 1][gh.pos.col] === CELL.GHOST_HOUSE;
+          const [go, back] = down ? ["down", "up"] : ["up", "down"];
+          const bob = { "--bob": down ? "50%" : "-50%", "--go": `url(/ghosts/${name}-${go}-0.svg)`, "--back": `url(/ghosts/${name}-${back}-1.svg)` };
+          return <div key={name} className="sprite bob" style={{ ...at(gh.pos), ...bob } as React.CSSProperties} />;
+        }
         // The ghost just eaten stays hidden behind its points during the freeze.
         const hidden = game.bite && gh.mode === "eyes" && key(gh.pos) === key(game.bite.pos);
-        return released(game, i) && !hidden && sprite(gh.pos, `/ghosts/${src}.svg`, "sprite", GHOSTS[i].name);
+        return !hidden && sprite(gh.pos, `/ghosts/${src}.svg`, "sprite", name);
       })}
       {game.bite && (
         <span className="sprite grid place-items-center font-arcade text-[#33ffff] text-[length:calc(var(--maze-cell)/2.5)]" style={at(game.bite.pos)}>

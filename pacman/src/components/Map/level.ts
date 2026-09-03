@@ -168,6 +168,8 @@ export type Game = {
   freed: number;
   ghosts: Ghost[];
   t: number;
+  /** Scatter/chase clock in ticks: like `t` but paused while the ghosts are frightened, as the arcade does. */
+  clock: number;
   score: number;
   /** Frightened ticks left; 0 = normal. */
   fright: number;
@@ -193,6 +195,7 @@ export const NEW_GAME: Game = {
   freed: 0,
   ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [], mode: "normal" })),
   t: 0,
+  clock: 0,
   score: 0,
   fright: 0,
   lives: LIVES,
@@ -307,21 +310,22 @@ export function tick(g: Game, want: Dir): Game {
   const t = g.t + 1;
   const power = dot === POINTS.power;
   const fright = power ? FRIGHT.ticks : Math.max(0, g.fright - 1);
+  const clock = fright ? g.clock : g.clock + 1;
   // 4s without a dot frees the next ghost still waiting in the house.
   let idle = dot ? 0 : g.idle + 1, freed = g.freed;
   const waiting = GHOSTS.findIndex((_, i) => !released(g, i));
   if (idle >= RELEASE_IDLE && waiting >= 0) { idle = 0; freed = waiting + 1; }
-  const next = { ...g, pos, dir, eaten, fruit, fruits, score, bonus, lives, t, fright, idle, freed, combo: power ? 0 : g.combo };
+  const next = { ...g, pos, dir, eaten, fruit, fruits, score, bonus, lives, t, clock, fright, idle, freed, combo: power ? 0 : g.combo };
   if (cleared(next)) return next; // last dot: the ghosts don't get a move on it
-  // A power pellet, like a mode switch, turns every ghost around. ponytail: the mode timer keeps running while frightened.
-  const flip = scatter(t) !== scatter(g.t) || power;
+  // A power pellet, like a mode switch, turns every ghost around.
+  const flip = scatter(clock) !== scatter(g.clock) || power;
   const ghosts = g.ghosts.map((gh, i) => {
     if (gh.mode === "eyes") return goHome(gh, i);
     const scared = power || (gh.mode === "scared" && fright > 0);
     gh = { ...gh, mode: scared ? "scared" : "normal" };
     if (!gh.out && !released(next, i)) return gh;
     if (scared && !power && t % 2) return gh; // frightened ghosts crawl at half speed
-    const target = !gh.out ? GHOSTS[i].door : scared ? null : scatter(t) ? GHOSTS[i].corner : TARGET[i](next);
+    const target = !gh.out ? GHOSTS[i].door : scared ? null : scatter(clock) ? GHOSTS[i].corner : TARGET[i](next);
     return moveGhost(gh, target, flip);
   });
   const after = { ...next, ghosts };
@@ -333,5 +337,5 @@ export function tick(g: Game, want: Dir): Game {
   }
   if (!caught(after)) return after;
   // Death: everyone back to their start tiles, mode clock and fright reset; dots and score stay.
-  return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, fright: 0, idle: 0, freed: 0 };
+  return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, clock: 0, fright: 0, idle: 0, freed: 0 };
 }

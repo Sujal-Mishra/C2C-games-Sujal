@@ -143,6 +143,20 @@ test("a power pellet frightens the ghosts: reverse, wander at half speed, time o
   assert.equal(tick(g, [0, 0]).fright, 0);
 });
 
+test("the scatter/chase clock pauses while the ghosts are frightened", () => {
+  // Clock on the last scatter tick; Pac-Man steps left from (1,2) onto the power pellet at (1,1).
+  let g = tick({ ...NEW_GAME, pos: { row: 1, col: 2 }, t: 34, clock: 34 }, [0, -1]);
+  assert.equal(g.fright, FRIGHT.ticks);
+  for (let i = 1; i < FRIGHT.ticks; i++) {
+    g = { ...tick(g, [0, 0]), ghosts: NEW_GAME.ghosts }; // nobody out to bite
+    assert.equal(g.clock, 34, `paused at fright ${g.fright}`);
+  }
+  assert.equal(scatter(g.clock), true, "still scatter");
+  g = tick(g, [0, 0]);
+  assert.deepEqual([g.fright, g.clock, scatter(g.clock)], [0, 35, false], "fright over: clock runs and chase begins");
+  assert.ok(g.t > g.clock, "the tick count kept going");
+});
+
 test("an unfrightened ghost on Pac-Man's tile costs a life and resets the board, not the dots", () => {
   // Blinky heads left from (1,3), Pac-Man right from (1,1): both land on (1,2).
   const blinky: Ghost = { pos: { row: 1, col: 3 }, dir: [0, -1], out: true, trail: [], mode: "normal" };
