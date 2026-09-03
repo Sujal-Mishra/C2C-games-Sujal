@@ -64,15 +64,15 @@ const sprite = (t: Tile, src: string, className = "sprite", k = key(t)) => (
   <div key={k} className={className} style={{ ...at(t), backgroundImage: `url(${src})` }} />
 );
 
-/** Arcade tile size. The board is drawn at this resolution and upscaled with `image-rendering: pixelated`. */
-const PX = 8;
+/** Canvas pixels per tile; drawn oversize and downscaled so the curves stay smooth. */
+const PX = 32;
+const LINE = 2;
 const WALL_COLOR = "#2b7fff";
 
 /**
- * Walls are one cell thick, so drawing a 1px line only on the sides that face an
+ * Walls are one cell thick, so drawing a line only on the sides that face an
  * open cell produces the twin-line hollow walls of the arcade board. Corners are
- * quarter-circles (radius = half a cell) wherever two neighbouring sides are both
- * open — at 8px they rasterise into the boxy curves of the original.
+ * quarter-circles (radius = half a cell) wherever two neighbouring sides are both open.
  */
 function drawWall(ctx: CanvasRenderingContext2D, row: number, col: number) {
   const up = !isWall(row - 1, col);
@@ -82,8 +82,8 @@ function drawWall(ctx: CanvasRenderingContext2D, row: number, col: number) {
   const tl = up && left, tr = up && right, bl = down && left, br = down && right;
 
   const x = col * PX, y = row * PX, r = PX / 2, cx = x + r, cy = y + r;
-  // Inset by half a pixel so 1px lines land on whole pixels.
-  const lo = 0.5, hi = PX - 0.5;
+  // Inset by half the line width so the stroke stays inside the tile.
+  const lo = LINE / 2, hi = PX - LINE / 2;
 
   ctx.beginPath();
   if (up) { ctx.moveTo(x + (tl ? r : 0), y + lo); ctx.lineTo(x + PX - (tr ? r : 0), y + lo); }
@@ -94,7 +94,7 @@ function drawWall(ctx: CanvasRenderingContext2D, row: number, col: number) {
 
   const arc = (from: number, to: number) => {
     ctx.beginPath();
-    ctx.arc(cx, cy, r - 0.5, from * Math.PI, to * Math.PI);
+    ctx.arc(cx, cy, r - LINE / 2, from * Math.PI, to * Math.PI);
     ctx.stroke();
   };
   if (tl) arc(1, 1.5);
@@ -106,17 +106,10 @@ function drawWall(ctx: CanvasRenderingContext2D, row: number, col: number) {
 function drawMaze(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext("2d")!;
   ctx.strokeStyle = WALL_COLOR;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = LINE;
   MAZE.forEach((line, row) =>
     line.forEach((cell, col) => cell === CELL.WALL && drawWall(ctx, row, col)),
   );
-
-  // Canvas anti-aliases the arcs; snap every pixel to on/off so the curves are
-  // real pixel steps rather than blurry blobs once upscaled.
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const d = img.data;
-  for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 127 ? 255 : 0;
-  ctx.putImageData(img, 0, 0);
 }
 
 export default function Map() {
@@ -125,6 +118,10 @@ export default function Map() {
   const left = (t: Tile) => !game.eaten.has(key(t));
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => drawMaze(canvas.current!), []);
+
+  if (!game.lives) {
+    return <p className="font-arcade text-[#ffb7c5] text-2xl sm:text-4xl">GAME OVER</p>;
+  }
 
   return (
     <div style={{ "--maze-cell": "clamp(6px, min(3vw, 3vh), 26px)" } as React.CSSProperties}>
@@ -135,7 +132,7 @@ export default function Map() {
         height={MAZE_ROWS * PX}
         role="img"
         aria-label="Pac-Man maze"
-        className="block [image-rendering:pixelated]"
+        className="block"
         style={{
           width: `calc(${MAZE_COLS} * var(--maze-cell))`,
           height: `calc(${MAZE_ROWS} * var(--maze-cell))`,
@@ -153,12 +150,9 @@ export default function Map() {
             : `scared-${frame}`;
         return released(game, i) && sprite(gh.pos, `/ghosts/${src}.svg`, "sprite", GHOSTS[i].name);
       })}
-      <output aria-label="Score" className="fixed top-4 right-4 font-mono text-2xl text-white">
+      <output aria-label="Score" className="absolute right-0 bottom-full pb-2 font-mono text-2xl text-white">
         {game.score}
       </output>
-      {!game.lives && (
-        <p className="absolute inset-0 grid place-items-center font-mono text-2xl text-red-500">GAME OVER</p>
-      )}
       <div
         role="img"
         aria-label="Pac-Man"
