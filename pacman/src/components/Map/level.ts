@@ -1,6 +1,13 @@
 import level from "./level.json" with { type: "json" };
 
-/** Cell codes used by the level editor export in `level.json`. */
+/**
+ * The integer vocabulary of a maze cell.
+ *
+ * What: a const object; its value type is narrowed to the literal union
+ * {@link CellCode}.
+ * Used by: {@link isWall}, {@link tilesOf}, {@link step}, the `house` helper,
+ * and `drawMaze` in `Map.tsx` — anywhere a raw cell value is compared.
+ */
 export const CELL = {
   PATH: 1,
   WALL: 2,
@@ -11,24 +18,66 @@ export const CELL = {
   GHOST_SPAWN: 7,
 } as const;
 
+/**
+ * The union of every legal cell code, i.e. `1 | 2 | 3 | 4 | 5 | 6 | 7`.
+ *
+ * Why: lets `MAZE` and `tilesOf`'s argument be typed precisely instead of
+ * `number`, so an out-of-range comparison is caught at compile time.
+ * Used by: {@link MAZE}'s element type and {@link tilesOf}'s parameter.
+ */
 export type CellCode = (typeof CELL)[keyof typeof CELL];
 
+/**
+ * The maze grid: `MAZE[row][col]` is a {@link CellCode}.
+ */
 export const MAZE: readonly (readonly CellCode[])[] = level.map as CellCode[][];
 
+/**
+ * Board height / width in tiles.
+ *
+ * Used by: {@link isWall}/{@link step} bounds checks, the corner coordinates in
+ * {@link GHOSTS}, and the `<canvas>` `width`/`height` in `Map.tsx`.
+ */
 export const MAZE_ROWS = MAZE.length;
 export const MAZE_COLS = MAZE[0].length;
 
-/** Paired tunnel openings, as {x: col, y: row} endpoints. */
+/**
+ * The tunnel pairs: each entry's `endpoints` are the two `{x: col, y: row}`
+ * openings that warp to each other.
+ *
+ * Why: Pac-Man and the ghosts leaving one side of the board must reappear on
+ * the other; this is the authored list of which hole connects to which.
+ * Used by: `TELEPORT_PARTNER` (built below) and re-exported for completeness.
+ */
 export const TELEPORTS = level.teleports;
 
+/**
+ * How many ghosts this level runs with (4).
+ *
+ * Why: lets a consumer know the ghost count without importing the whole
+ * {@link GHOSTS} table.
+ */
 export const NUM_GHOSTS = level.numGhosts;
 
-/** Cells outside the grid count as open so the outer border draws an outline. */
+/**
+ * Is the tile at (row, col) a solid wall?
+ *
+ * How: bounds-check first; anything off the grid returns `false` (treated as
+ * open). Otherwise compare the cell to `CELL.WALL`.
+ * Used by: `drawWall` in `Map.tsx` (which sides to stroke) and — indirectly —
+ * every movement path, since {@link step} rejects `CELL.WALL`.
+ */
 export function isWall(row: number, col: number): boolean {
   if (row < 0 || row >= MAZE_ROWS || col < 0 || col >= MAZE_COLS) return false;
   return MAZE[row][col] === CELL.WALL;
 }
 
+/**
+ * `"row,col"` of a teleport endpoint -> the `{x, y}` of its partner endpoint.
+ * basically given an input tp point it gives the other point it should come out of
+ *
+ * Used by: {@link step} only.
+ */
 const TELEPORT_PARTNER = new Map(
   TELEPORTS.flatMap(({ endpoints: [a, b] }) => [
     [`${a.y},${a.x}`, b],
@@ -36,49 +85,155 @@ const TELEPORT_PARTNER = new Map(
   ] as const),
 );
 
+/**
+ * A board position by grid coordinate.
+ *
+ * What: `{ row, col }`, i.e. `{ y, x }` in screen terms.
+ */
 export type Tile = { row: number; col: number };
-/** Unit step as [dRow, dCol]; [0, 0] is standing still. */
-export type Dir = readonly [number, number];
 
-/** Every tile carrying `code`, in row-major order. */
+/**
+ * A one-tile movement delta as `[dRow, dCol]` — "d" for delta, i.e. how much
+ * one step changes the row and the column. `[0, 0]` means "not moving".
+ *
+ * Why: directions need to be added to tiles, negated (reverse), and used as
+ * map keys — a fixed-length numeric pair does all three cheaply.
+ * What: a `readonly [number, number]` tuple. `row` grows downward and `col`
+ * grows rightward, so only these 5 values ever occur:
+ *
+ *     [-1,  0]  up      (row - 1, col unchanged)
+ *     [ 1,  0]  down    (row + 1, col unchanged)
+ *     [ 0, -1]  left    (col - 1, row unchanged)
+ *     [ 0,  1]  right   (col + 1, row unchanged)
+ *     [ 0,  0]  stopped (nothing changes)
+ *
+ * Used by: {@link MVMT_DELTAS} (the four non-zero values, in tie-break order),
+ * `advance`, {@link moveGhost}, {@link step}; the `KEYS` and `FACE` tables in
+ * `Map.tsx`; `Game.dir`, `Ghost.dir`.
+ */
+export type MovementDelta = readonly [number, number];
+
+/**
+ * Every tile in the maze that holds `code`, scanned in row-major order.
+ *
+ * Why: the board is authored as a grid, but the game wants lists — "all pellet
+ * tiles", "all ghost-house tiles", "the Pac-Man spawn". This inverts the grid
+ * once per category.
+ * Used by: {@link PACMAN_SPAWN}, {@link DOTS}, {@link GHOST_HOUSE},
+ * {@link GHOST_SPAWN} — all computed at module load.
+ */
 export function tilesOf(code: CellCode): Tile[] {
   return MAZE.flatMap((line, row) =>
     line.flatMap((cell, col) => (cell === code ? [{ row, col }] : [])),
   );
 }
 
+/**
+ * Canonical string id for a tile: `"row,col"`.
+ *
+ * Why: `Set`/`Map` compare objects by reference, so tiles can't be keys
+ * directly; the game needs value equality to ask "have I eaten this dot?",
+ * "is a ghost on my tile?", "have I been here recently?".
+ * Used by: `eaten`/`DOT_KEYS` (dots), `Ghost.trail`, collision checks in
+ * `tick`/`caught`, `TELEPORT_PARTNER`, and React `key`s in `Map.tsx`.
+ */
 export const key = (t: Tile) => `${t.row},${t.col}`;
 
+/**
+ * Where Pac-Man starts (and respawns after a death).
+ */
 export const PACMAN_SPAWN: Tile = tilesOf(CELL.PACMAN_SPAWN)[0];
 
-/** Every dot on the board: a pellet on each PATH tile, a power pellet on each POWER_PELLET tile. */
+/**
+ * Every collectible on the board, split by kind.
+ *
+ * Why: rendering needs the full list to draw dots; the sim needs it to score
+ * them and to know when the level is clear.
+ * Used by: `Map.tsx` (draw remaining dots), and `DOT_KEYS` / {@link cleared}
+ * (scoring and level-complete).
+ */
 export const DOTS = {
   pellets: tilesOf(CELL.PATH),
   power: tilesOf(CELL.POWER_PELLET),
 };
 
-/** Fruit slot below the ghost house: a cherry (the only fruit, there's one level), appearing when the 70th and 170th dots are eaten. */
+/**
+ * The bonus-fruit slot and its spawn triggers.
+ *
+ * Why: the arcade drops a fruit under the ghost house twice per level for bonus
+ * points; the game needs to know *where* it lands and *when* it appears.
+ * Used by: {@link tick} (spawn/despawn/scoring) and `Map.tsx` (draw the
+ * cherry).
+ */
 export const FRUIT_SPAWN: Tile = { row: 17, col: 13 };
+
+/**
+ * The two dot counts that trigger a fruit spawn (70 and 170, level 1).
+ */
 export const FRUIT_AT = [70, 170];
 
-/** Arcade points, level 1. */
+/**
+ * Points awarded, matching the original level-1 table.
+ *
+ * Used by: {@link tick} (all scoring) and `DOT_KEYS`.
+ */
 export const POINTS = { pellet: 10, power: 50, cherry: 100, ghost: 200 };
-/** Three Pac-Men per game; one bonus life at 10,000 points. The cherry is points only. */
+
+/**
+ * Starting lives (3) and the score at which a bonus life is granted (10,000).
+
+ * Used by: {@link NEW_GAME} (`LIVES`), {@link tick} (`EXTRA_LIFE_AT`),
+ * `Map.tsx` (life pips = `lives - 1`).
+ */
 export const LIVES = 3;
+
+/**
+ * At how many points we get an extra life
+ */
 export const EXTRA_LIFE_AT = 10_000;
 
 /**
- * Ghost house: the two 3x2 pockets inside the "2" — rows 11-12 (open to the
- * left via col 11) and rows 14-15 (open to the right via col 15). GHOST_SPAWN
- * is the single marker tile at the top of the board (row 7, col 13).
- * No ghosts yet; these exist so the ghost commit has its coordinates.
+ * Every ghost-house tile, and the single ghost-spawn marker.
+ *
+ * Why: the house is a no-go zone for a ghost that has already left (and for
+ * Pac-Man), and the sim needs its extent to enforce that; `GHOST_SPAWN` is kept
+ * as a distinct marker tile for future use.
+ * Used by: the `house` helper (which drives {@link step}/{@link moveGhost}
+ * house rules) and `Map.tsx`'s in-house bob direction; `GHOST_SPAWN` is
+ * currently re-exported only.
  */
 export const GHOST_HOUSE: Tile[] = tilesOf(CELL.GHOST_HOUSE);
 export const GHOST_SPAWN: Tile = tilesOf(CELL.GHOST_SPAWN)[0];
 
 /**
- * Arcade ghosts. `tile`: start (all inside the house), `door`: the tile they
- * head for to get out, `corner`: scatter target (Blinky TR, Pinky TL, Inky BR, Clyde BL).
+ * Per-ghost fixed data: identity, start tile, house exit, and scatter corner.
+ *
+ * How: index order is blinky, pinky, inky, clyde — the same order used
+ * everywhere (`NEW_GAME.ghosts`, `TARGET`, `RELEASE`, the render loop).
+ *
+ * Fields, per entry:
+ * - `name`:   sprite identity. `Map.tsx` builds the image path from it
+ *             (`/ghosts/${name}.svg` and friends) and it is the label used when
+ *             talking about a specific ghost. Never changes at runtime.
+ * - `tile`:   the ghost's seat *inside* the house — where it starts the level
+ *             and where it respawns after being eaten. `goHome` routes eyes
+ *             back to this tile; {@link NEW_GAME} seeds `ghost.at` from it.
+ *             Blinky's is on the door row, so he effectively starts already
+ *             leaving; the other three sit a row deeper.
+ * - `door`:   the aim point for *getting out*. A caged ghost steers toward this
+ *             tile (just outside the pocket) to climb out through the house
+ *             gap; once it reaches `door` it is on the open maze and normal
+ *             targeting takes over. Also the last waypoint `goHome` uses on the
+ *             way back in.
+ * - `corner`: the scatter target — the tile this ghost runs at during every
+ *             scatter phase, one per screen quadrant so the four fan out:
+ *             Blinky top-right, Pinky top-left, Inky bottom-right, Clyde
+ *             bottom-left. {@link scatter} returns this; {@link TARGET} falls
+ *             back to it. Expressed with `MAZE_ROWS/COLS - 1` so it tracks the
+ *             real board size rather than a magic number.
+ *
+ * Used by: {@link NEW_GAME}, {@link released}, {@link tick} (targets, exits),
+ * `goHome` (regen tile), and `Map.tsx` (`GHOSTS[i].name` -> sprite path).
  */
 export const GHOSTS = [
   { name: "blinky", tile: { row: 11, col: 12 }, door: { row: 11, col: 11 }, corner: { row: 0, col: MAZE_COLS - 1 } },
@@ -86,24 +241,101 @@ export const GHOSTS = [
   { name: "inky", tile: { row: 14, col: 12 }, door: { row: 14, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
   { name: "clyde", tile: { row: 15, col: 14 }, door: { row: 15, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
 ];
-/** Dots eaten before each ghost leaves the house (level 1). */
+
+/**
+ * Dots-eaten thresholds that let each ghost out of the house, level 1.
+ *
+ * Why: the arcade staggers ghost releases so they don't all pour out at once;
+ * Blinky and Pinky are immediate, Inky waits for 30 dots, Clyde for 60.
+ * How: indexed like {@link GHOSTS}; read by {@link released} while `Game.since`
+ * is 0 (no death yet this life).
+ */
 const RELEASE = [0, 0, 30, 60];
-/** After a death the arcade counts dots from the reset instead, with these thresholds. */
+
+/**
+ * Dots-since-reset thresholds used *after* a death instead of {@link RELEASE}.
+ *
+ * Why: the real machine, after Pac-Man dies, stops counting total dots and
+ * counts dots eaten since the reset, with a tighter table (0/7/17/32) so the
+ * board re-populates with ghosts at a sensible pace.
+ * How: {@link released} picks this table when `Game.since > 0`, measuring
+ * `eaten.size - since`.
+ */
 const RELEASE_AFTER_DEATH = [0, 7, 17, 32];
-/** Ghost `i` exists once its release count is met or the no-dot timer freed it; before that it's not on the board at all. */
+
+/**
+ * Is ghost `i` on the board yet?
+ *
+ * Why: a ghost still waiting in the house isn't simulated or drawn as a mover
+ * (it only bobs); the release rule decides the moment it "exists".
+ * How: true if the idle timer already freed it (`i < g.freed`), or the
+ * appropriate dots threshold is met — {@link RELEASE_AFTER_DEATH} measured from
+ * the last death when `g.since` is set, otherwise {@link RELEASE} on total
+ * dots.
+ * Used by: {@link tick} (whether to move ghost `i`, and the idle-timer's
+ * "who's next" scan) and `Map.tsx` (bob vs. move rendering).
+ */
 export const released = (g: Game, i: number) =>
   i < g.freed || g.eaten.size - g.since >= (g.since ? RELEASE_AFTER_DEATH : RELEASE)[i]; // ponytail: a death at 0 dots keeps the start table
 
-export const TICK_MS = 200; // ms per tile: bigger = slower
+/**
+ * Milliseconds per tile of movement — the master speed knob.
+ *
+ * Why: the game advances one tile per tick; this is how long a tick lasts, so
+ * it sets the whole pace. Bigger = slower.
+ * Used by: `Map.tsx`'s tick loop; `SEC` and everything downstream.
+ */
+export const TICK_MS = 166; // ms per tile: bigger = slower
+
+/**
+ * Ticks per second — the conversion factor from seconds to ticks.
+ *
+ * Why: the arcade tables are in seconds; the sim counts in ticks. Defining this
+ * once lets the phase/fright/fruit constants read as `7 * SEC` etc.
+ */
 const SEC = 1000 / TICK_MS;
-/** Level-1 arcade: 4s without a dot lets the next ghost out anyway. */
+
+/**
+ * Ticks of no-dot-eaten that force the next waiting ghost out (4s, level 1).
+ *
+ * Why: without this, a player who stops eating could stall ghost releases
+ * forever; the arcade has the same safety valve.
+ */
 const RELEASE_IDLE = 4 * SEC;
-/** The fruit leaves the board after 9s if it isn't eaten. */
+
+/**
+ * How long a spawned fruit stays on the board before vanishing (9s).
+ *
+ * Used by: {@link tick}; re-exported for anyone displaying a timer.
+ */
 export const FRUIT_TICKS = 9 * SEC;
-/** Level-1 mode phases in ticks, scatter first, alternating; chase forever after the last. */
+
+/**
+ * The scatter/chase schedule for level 1, in ticks.
+ *
+ * Why: ghosts alternate between "scatter" (run to your corner) and "chase"
+ * (hunt Pac-Man) on a fixed timetable; this is that timetable, 7s/20s/7s/20s/
+ * 5s/20s/5s, then chase forever.
+ */
 const PHASES = [7, 20, 7, 20, 5, 20, 5].map((s) => s * SEC);
-/** Frightened lasts 6s at level 1, flashing white for the last 2s. */
+
+/**
+ * Frightened-mode timing (level 1): 6s total, the last 2s flashing white.
+ *
+ * Why: eating a power pellet makes ghosts vulnerable for a bounded window with
+ * a visual warning as it runs out.
+ * Used by: {@link tick} (state) and `Map.tsx` (sprite choice).
+ */
 export const FRIGHT = { ticks: 6 * SEC, flash: 2 * SEC };
+
+/**
+ * Given the mode clock, are the ghosts scattering (vs. chasing) right now?
+ *
+ * Why: {@link tick} needs a single query to pick each ghost's target and to
+ * detect a phase change (which turns every ghost around).
+ * Used by: {@link tick} — both to choose targets and, by comparing
+ * `scatter(clock)` before/after, to trigger the group reversal.
+ */
 export function scatter(t: number): boolean {
   for (let i = 0; i < PHASES.length; i++) {
     if (t < PHASES[i]) return i % 2 === 0;
@@ -112,12 +344,23 @@ export function scatter(t: number): boolean {
   return false;
 }
 
+/**
+ * Is this tile part of the ghost house?
+ *
+ * Used by: {@link step} (blocks entry unless `houseOk`), {@link moveGhost}
+ * (sets `out` once a ghost leaves).
+ */
 const house = (t: Tile) => MAZE[t.row][t.col] === CELL.GHOST_HOUSE;
 
 /**
- * The tile reached by moving one step from (row, col), or null if a wall (or,
- * unless `houseOk`, the ghost house) blocks it. Stepping off the grid from a
- * teleport endpoint emerges at its partner.
+ * Take one step from (row, col) by (dRow, dCol); return the tile landed on, or
+ * `null` if something blocks it.
+ *
+ * Why: the single primitive for "is this move legal, and where does it land?" —
+ * every mover (Pac-Man via `advance`, ghosts via `moveGhost`, BFS via
+ * `towards`) goes through it, so wall rules, the house rule, and tunnel
+ * wrap-around are defined once.
+ * Used by: `advance`, `moveGhost`, `towards`, and re-exported.
  */
 export function step(
   row: number,
@@ -139,24 +382,59 @@ export function step(
 }
 
 /**
- * Arcade steering: turn into `want` the moment it's open, otherwise carry on in
- * `dir`, otherwise stop against the wall (keeping `dir` so the sprite still faces it).
+ * Resolve Pac-Man's next tile and facing from what the player wants and where
+ * he's already going.
+ *
+ * Why: arcade Pac-Man doesn't stop-and-turn — he keeps going until the wanted
+ * turn opens up, then takes it instantly, and if nothing's open he stops but
+ * keeps facing the way he was headed. This encodes that feel.
+ * Used by: {@link tick}, once per tick, for Pac-Man.
  */
-export function advance(pos: Tile, want: Dir, dir: Dir): { pos: Tile; dir: Dir } {
+export function advance(pos: Tile, want: MovementDelta, dir: MovementDelta): { pos: Tile; dir: MovementDelta } {
   const turned = step(pos.row, pos.col, ...want);
   if (turned) return { pos: turned, dir: want };
   return { pos: step(pos.row, pos.col, ...dir) ?? pos, dir };
 }
 
 /**
- * `out`: has left the ghost house. `trail`: keys of the last few tiles, avoided so 2-wide corridors don't trap it in a loop.
- * `mode`: `scared` after a power pellet, `eyes` once eaten (running home to regenerate).
+ * A ghost's mutable per-tick state.
+ *
+ * Why: each ghost carries more than a position — whether it's escaped the
+ * house, a short memory of where it's been, and which behaviour/sprite mode
+ * it's in.
+ * How & what: `pos`/`dir` are the obvious ones. `out` flips true the first time
+ * the ghost stands on a non-house tile and never goes back (so it can't
+ * re-enter). `trail` is the last few tile keys, used by {@link moveGhost} to
+ * break out of 2-wide-corridor loops. `mode` is `normal` (chase/scatter),
+ * `scared` (frightened, edible), or `eyes` (eaten, pathing home to regenerate).
+ * Used by: {@link moveGhost}, `goHome`, `caught`, {@link tick}, and `Map.tsx`'s
+ * ghost render loop.
  */
-export type Ghost = { pos: Tile; dir: Dir; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes" };
-/** `eaten` holds dot keys; `t` is the tick count. */
+export type Ghost = { pos: Tile; dir: MovementDelta; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes" };
+
+/**
+ * The entire game state — everything one {@link tick} reads and rewrites.
+ *
+ * Why: keeping *all* mutable state in one plain object is what makes the sim
+ * pure and the React side a one-liner (`setGame(g => tick(g, want))`); nothing
+ * lives outside it.
+ * How: grouped roughly as Pac-Man (`pos`, `dir`), progress (`eaten`, `score`,
+ * `lives`, `bonus`), the fruit (`fruit`, `fruits`), ghost release (`idle`,
+ * `freed`, `since`), the ghosts themselves, the two clocks (`t` real, `clock`
+ * mode — see {@link scatter}), frightened state (`fright`, `combo`), and the
+ * brief post-bite freeze (`bite`). Each field is documented inline below.
+ * What: a `type` describing a JSON-ish object (the only non-plain value is
+ * `eaten`, a `Set`).
+ * Used by: {@link tick} (produces the next one), {@link NEW_GAME} (the seed),
+ * every predicate here, and `Map.tsx` (renders from it, derives sounds from
+ * field deltas).
+ * Design: immutable by convention — {@link tick} spreads a fresh object rather
+ * than mutating — so React state updates are safe and a tick is easy to reason
+ * about or replay.
+ */
 export type Game = {
   pos: Tile;
-  dir: Dir;
+  dir: MovementDelta;
   eaten: Set<string>;
   /** Ticks the fruit stays on the board; 0 = no fruit out. */
   fruit: number;
@@ -185,6 +463,18 @@ export type Game = {
   bite: { pos: Tile; points: number; left: number } | null;
 };
 
+/**
+ * The pristine starting state for a fresh game.
+ *
+ * Why: `useState(NEW_GAME)` seeds the React state, and the death branch of
+ * {@link tick} reuses `NEW_GAME.ghosts` to reset every ghost to its house tile.
+ * How: Pac-Man at {@link PACMAN_SPAWN}, not moving; empty `eaten`; all clocks
+ * and counters zero; `lives` = {@link LIVES}; ghosts mapped from {@link GHOSTS}
+ * to `{ pos: tile, dir: [0,0], out: false, trail: [], mode: "normal" }`.
+ * What: a fully-populated {@link Game}.
+ * Design: a single frozen-in-spirit constant (never mutated — {@link tick}
+ * copies out of it) so "new game" and "post-death reset" can't drift apart.
+ */
 export const NEW_GAME: Game = {
   pos: PACMAN_SPAWN,
   dir: [0, 0],
@@ -205,23 +495,95 @@ export const NEW_GAME: Game = {
   bite: null,
 };
 
+/**
+ * Is a fruit currently on the board?
+ *
+ * Used by: `Map.tsx` (draw the cherry) and {@link tick}.
+ */
 export const fruitOut = (g: Game) => g.fruit > 0;
 
-/** Dot key -> points. */
+/**
+ * Every dot tile key -> its point value.
+ *
+ * Why: {@link tick} has to answer "did Pac-Man just land on an uneaten dot, and
+ * if so how much?" in O(1); a pre-built map does that and doubles as the
+ * total-dots count for {@link cleared}.
+ * How: merge {@link DOTS}`.pellets` (each -> `POINTS.pellet`) and `.power`
+ * (each -> `POINTS.power`) into one `Map`, keyed by {@link key}.
+ * What: module-private `Map<string, number>`.
+ * Used by: {@link tick} (lookup) and {@link cleared} (`.size`).
+ */
 const DOT_KEYS = new Map([
   ...DOTS.pellets.map((t) => [key(t), POINTS.pellet] as const),
   ...DOTS.power.map((t) => [key(t), POINTS.power] as const),
 ]);
 
-/** Every dot eaten: the one level is done. */
+/**
+ * Has every dot been eaten (level complete)?
+ *
+ * Why: the win condition. There's one level, so an empty board is the end.
+ * How: compare `g.eaten.size` to the total dot count (`DOT_KEYS.size`).
+ * What: a pure `(Game) => boolean`.
+ * Used by: {@link tick} (stops the sim, and skips the ghost move on the final
+ * dot) and `Map.tsx` (GAME COMPLETED screen, and cutting the audio).
+ */
 export const cleared = (g: Game) => g.eaten.size === DOT_KEYS.size;
 
-/** Arcade tie-break order when two directions are equally close to the target. */
-const DIRS: Dir[] = [[-1, 0], [0, -1], [1, 0], [0, 1]];
+/**
+ * The four unit directions in the arcade's tie-break order: up, left, down,
+ * right.
+ *
+ * Why: when two moves are equally close to a ghost's target, the original game
+ * resolves the tie by a fixed priority; iterating in this order reproduces it.
+ * How: {@link moveGhost} and `towards` loop over this array; ties keep the
+ * earlier entry.
+ * What: module-private `Dir[]`.
+ */
+const MVMT_DELTAS: MovementDelta[] = [[-1, 0], [0, -1], [1, 0], [0, 1]];
+
+/**
+ * Squared Euclidean distance between two tiles.
+ *
+ * Why: ghosts pick the neighbour "closest in a straight line" to their target;
+ * comparing squared distance avoids a `sqrt` and is monotonic so the ordering
+ * is identical.
+ * Used by: {@link moveGhost} (neighbour choice) and `TARGET[3]` (Clyde's
+ * proximity check).
+ */
 const dist2 = (a: Tile, b: Tile) => (a.row - b.row) ** 2 + (a.col - b.col) ** 2;
+
+/**
+ * The tile `n` steps ahead of Pac-Man along his current facing (no wall
+ * checks).
+ *
+ * Why: Pinky and Inky aim at a point *in front of* Pac-Man, not at him; this
+ * projects that point.
+ * How: `pos + dir * n`, straight arithmetic — it may land in a wall or off the
+ * grid, which is fine, it's only a target coordinate.
+ * What: a module-private `(Game, number) => Tile`.
+ * Used by: `TARGET[1]` (Pinky, n=4) and `TARGET[2]` (Inky, n=2).
+ */
 const ahead = (g: Game, n: number): Tile => ({ row: g.pos.row + g.dir[0] * n, col: g.pos.col + g.dir[1] * n });
 
-/** Chase targets, indexed like GHOSTS. ponytail: skips Pinky/Inky's facing-up overflow bug. */
+/**
+ * Chase-mode target functions, one per ghost, indexed like {@link GHOSTS}.
+ *
+ * Why: the four ghosts' personalities *are* their chase targets — this table is
+ * that personality set, isolated from the movement code that consumes it.
+ * How, per index:
+ *  - 0 Blinky: Pac-Man's tile (straight pursuit).
+ *  - 1 Pinky: 4 tiles ahead of Pac-Man (ambush).
+ *  - 2 Inky: reflect Blinky's position through the point 2 tiles ahead of
+ *    Pac-Man (`2*ahead - blinky`) — needs both actors, so it's erratic.
+ *  - 3 Clyde: Pac-Man's tile while far (dist² > 64, i.e. >8 tiles), but his own
+ *    scatter corner once close — so he peels off when he gets near.
+ * What: module-private `((Game) => Tile)[]`.
+ * Used by: {@link tick}, which calls `TARGET[i](next)` for an `out`, unscared,
+ * chasing ghost.
+ * Design: the ponytail note — the real arcade's Pinky/Inky have an 8-bit
+ * overflow bug when Pac-Man faces up; this deliberately uses the "corrected"
+ * vector because reproducing a CPU quirk isn't worth the code.
+ */
 const TARGET: ((g: Game) => Tile)[] = [
   (g) => g.pos,
   (g) => ahead(g, 4),
@@ -232,19 +594,46 @@ const TARGET: ((g: Game) => Tile)[] = [
   (g) => (dist2(g.pos, g.ghosts[3].pos) > 64 ? g.pos : GHOSTS[3].corner),
 ];
 
-/** Tiles remembered per ghost: 4 covers a lap of a 2x2 block, the smallest loop on this map. */
+/**
+ * How many recent tiles each ghost remembers in `Ghost.trail`.
+ *
+ * Why: greedy "closest neighbour" steering can lock a ghost into a tight loop
+ * on this map's open blocks; a short tabu list of visited tiles breaks it.
+ * How: {@link moveGhost} prefers a neighbour not in `trail`, and pushes the
+ * tile it leaves onto the front, capped at this length.
+ * What: module-private `number` (4).
+ * Design: 4 is the perimeter of the smallest loop here (a 2x2 block), so it's
+ * just enough memory to escape one without over-constraining normal movement.
+ */
 const TRAIL = 4;
 
 /**
- * Arcade ghost step: never reverse, take the open neighbour closest (straight
- * line) to `target`, ties broken up > left > down > right. `flip` reverses
- * first (mode change). A ghost that's out may not re-enter the house.
- * `target: null` is frightened: a random open direction instead.
- * Non-arcade: tiles in `trail` are taken only if nothing else is open.
+ * Advance one ghost by a tile toward `target` under arcade rules.
+ *
+ * Why: all ghost movement — chasing, scattering, heading for the door,
+ * fleeing while frightened — is the same "pick a neighbour" step with a
+ * different target; this is that step.
+ * How: build the list of `open` neighbours, excluding a straight reversal
+ * (ghosts never turn back mid-corridor) and anything {@link step} rejects
+ * (`!g.out` passes `houseOk` so a caged ghost can move inside). If boxed in,
+ * turn around and move next tick. Otherwise start from a random open pick and,
+ * if there's a `target`, replace it with any neighbour that is "fresher" (not
+ * in `trail`) or — same freshness — strictly closer by {@link dist2}, scanning
+ * in {@link MVMT_DELTAS} order so ties resolve up>left>down>right. `target: null` is
+ * frightened mode: keep the random pick. `flip` reverses the incoming
+ * direction first, used on a mode change / power pellet. Finally push the
+ * vacated tile onto `trail` and set `out` once clear of the house.
+ * What: a pure `(Ghost, Tile | null, flip?) => Ghost`.
+ * Used by: {@link tick}, for every `out`/releasable ghost that isn't in `eyes`
+ * mode.
+ * Design: the `trail` "freshness" tie-break is the one non-arcade addition —
+ * pure greedy steering visibly loops on this custom map. Random-then-refine
+ * keeps frightened movement genuinely unpredictable while chase stays
+ * deterministic.
  */
 export function moveGhost(g: Ghost, target: Tile | null, flip = false): Ghost {
-  const dir: Dir = flip ? [-g.dir[0], -g.dir[1]] : g.dir;
-  const open = DIRS.flatMap((d) => {
+  const dir: MovementDelta = flip ? [-g.dir[0], -g.dir[1]] : g.dir;
+  const open = MVMT_DELTAS.flatMap((d) => {
     if (d[0] === -dir[0] && d[1] === -dir[1]) return [];
     const pos = step(g.pos.row, g.pos.col, d[0], d[1], !g.out);
     return pos ? [{ pos, dir: d, fresh: !g.trail.includes(key(pos)) }] : [];
@@ -260,7 +649,24 @@ export function moveGhost(g: Ghost, target: Tile | null, flip = false): Ghost {
   return { ...g, pos: best.pos, dir: best.dir, out: g.out || !house(best.pos), trail };
 }
 
-/** Next tile on a shortest path (BFS, house allowed). ponytail: greedy steering loops on this map's side-opening house, so eyes path-find. */
+/**
+ * First tile on a shortest path from `from` to `to` (breadth-first, house
+ * allowed).
+ *
+ * Why: an eaten ghost ("eyes") has to get *back into* the side-opening house
+ * reliably; greedy steering loops forever on that geometry, so eyes need real
+ * pathfinding.
+ * How: BFS over {@link MVMT_DELTAS} with `step(..., true)` so house tiles are
+ * traversable, recording each tile's predecessor in `prev`. On reaching `to`,
+ * walk predecessors back until the step *before* `from`, and return that — the
+ * single next tile to move to.
+ * What: a module-private `(Tile, Tile) => Tile | null` (`null` if unreachable,
+ * which shouldn't happen on a connected board).
+ * Used by: `goHome` only.
+ * Design: BFS (not A*) because the board is tiny — cost/benefit says the
+ * simplest correct search wins; returning just the next hop keeps `goHome` a
+ * plain move loop.
+ */
 function towards(from: Tile, to: Tile): Tile | null {
   const prev = new Map<string, Tile | null>([[key(from), null]]);
   const queue = [from];
@@ -271,7 +677,7 @@ function towards(from: Tile, to: Tile): Tile | null {
       while ((back = prev.get(key(cur))) && key(back) !== key(from)) cur = back;
       return cur;
     }
-    for (const d of DIRS) {
+    for (const d of MVMT_DELTAS) {
       const n = step(t.row, t.col, d[0], d[1], true);
       if (n && !prev.has(key(n))) { prev.set(key(n), t); queue.push(n); }
     }
@@ -279,7 +685,21 @@ function towards(from: Tile, to: Tile): Tile | null {
   return null;
 }
 
-/** Eyes run home at double speed and regenerate on their start tile, leaving the house again unfrightened. */
+/**
+ * Move an "eyes" ghost two tiles toward its home tile; regenerate it there.
+ *
+ * Why: an eaten ghost races home at double speed and comes back as a normal
+ * ghost — that's the reward loop for clearing a frightened chain.
+ * How: up to two hops via {@link towards} (the "double speed"); the direction
+ * is `sign` of the delta so the sprite faces its travel. On arrival at
+ * `GHOSTS[i].tile` it returns to `mode: "normal"`, `out: false`, `trail: []`,
+ * so {@link moveGhost} then walks it back out the door.
+ * What: a module-private `(Ghost, number) => Ghost`.
+ * Used by: {@link tick}, first thing, for any ghost in `eyes` mode.
+ * Design: two `towards` calls rather than a speed field keeps "double speed"
+ * local and obvious; resetting `out`/`trail` on regen means the normal
+ * house-exit logic takes over with no special case.
+ */
 function goHome(gh: Ghost, i: number): Ghost {
   for (let n = 0; n < 2; n++) {
     if (key(gh.pos) === key(GHOSTS[i].tile)) return { ...gh, mode: "normal", out: false, trail: [] };
@@ -290,8 +710,19 @@ function goHome(gh: Ghost, i: number): Ghost {
 }
 
 /**
- * Arcade collision: Pac-Man and an unfrightened ghost end the tick on the same
- * tile, or crossed paths head-on and swapped tiles without ever sharing one.
+ * Did a non-frightened ghost just catch Pac-Man on this tick?
+ *
+ * Why: same-tile is the obvious catch, but on a grid two things moving toward
+ * each other can *swap* tiles in one tick without ever sharing one; the arcade
+ * counts that as a catch and so must this, or ghosts phase through Pac-Man.
+ * How: for each ghost that is `out` and `mode === "normal"`: catch if it ends
+ * on Pac-Man's new tile, or if it ended on Pac-Man's *old* tile while Pac-Man
+ * ended on its *old* tile (a head-on swap).
+ * What: a module-private `(before: Game, after: Game) => boolean`.
+ * Used by: {@link tick}, after the ghosts move, to decide a death.
+ * Design: takes both the pre- and post-move states because the swap test needs
+ * both endpoints; `eyes`/`scared` ghosts are excluded here — a `scared` ghost
+ * on Pac-Man's tile is handled earlier as a bite.
  */
 function caught(before: Game, after: Game): boolean {
   return after.ghosts.some((gh, i) => {
@@ -302,8 +733,47 @@ function caught(before: Game, after: Game): boolean {
   });
 }
 
-/** One tick: move Pac-Man, eat whatever he landed on, move the ghosts, then check for a bite or a death. */
-export function tick(g: Game, want: Dir): Game {
+/**
+ * Advance the whole game by one tile-step. The core of the sim.
+ *
+ * Why: the render loop needs exactly one pure function to call each frame;
+ * everything the game *does* in 200ms happens here, so state stays consistent
+ * and a step is replayable.
+ * How, in order:
+ *  1. Bail if the game is over/won (return `g` unchanged), or if a post-bite
+ *     freeze is running (just count `bite.left` down — the fright clock freezes
+ *     too).
+ *  2. Move Pac-Man with {@link advance}; see what tile he's on.
+ *  3. Eat: an uneaten dot adds its {@link POINTS} and a key to `eaten`; the
+ *     cherry (fruit out and on {@link FRUIT_SPAWN}) adds `POINTS.cherry` and
+ *     clears the fruit. Count the fruit timer down; spawn the next fruit when
+ *     `eaten.size` crosses the next {@link FRUIT_AT} threshold and none is out.
+ *  4. Score/lives: add the extra life the first tick `score >= EXTRA_LIFE_AT`.
+ *  5. Clocks: `t` always ticks; `fright` is reset by a power pellet else
+ *     decremented; the mode `clock` only ticks when not frightened.
+ *  6. Idle release: `idle` counts dot-less ticks; at {@link RELEASE_IDLE} it
+ *     frees the next still-caged ghost.
+ *  7. If that ate the last dot, return now — ghosts get no move on the winning
+ *     tile.
+ *  8. Move ghosts: `eyes` -> {@link goHome}; otherwise set `scared` from
+ *     power/fright, skip a still-caged ghost, let frightened ghosts move only
+ *     every other tick (half speed), pick a target (door if not out, `null` if
+ *     scared, corner if scattering, else `TARGET[i]`), and call
+ *     {@link moveGhost} — with `flip` on a scatter/chase flip or a power
+ *     pellet.
+ *  9. Resolve contact: a `scared` ghost on Pac-Man's tile is a bite —
+ *     `POINTS.ghost << combo` points, that ghost -> `eyes`, and a one-second
+ *     `bite` freeze. Otherwise, if {@link caught}, it's a death: decrement
+ *     `lives`, record `since`, put everyone back on their start tiles, and zero
+ *     the clocks/timers (dots and score persist).
+ * What: a pure `(Game, want: Dir) => Game`.
+ * Used by: `Map.tsx`'s `setInterval` tick (`setGame(g => tick(g, want.current))`).
+ * Design: one big function, top-to-bottom, spreading a fresh object at each
+ * stage rather than mutating — the ordering (eat, then move ghosts, then check
+ * collisions) is what makes the rules line up with the arcade, and purity is
+ * what lets React and the sound layer treat a tick as a value.
+ */
+export function tick(g: Game, want: MovementDelta): Game {
   if (!g.lives || cleared(g)) return g; // game over or completed
   if (g.bite) return { ...g, bite: g.bite.left > 1 ? { ...g.bite, left: g.bite.left - 1 } : null }; // everything freezes, fright clock included
   const { pos, dir } = advance(g.pos, want, g.dir);

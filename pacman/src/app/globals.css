@@ -1,10 +1,22 @@
 @import "tailwindcss";
 
+/*
+ * Light-theme page colours. Why: `create-next-app` boilerplate kept so the
+ * document has sane fg/bg outside the black game board. The game itself paints
+ * its own black background in `page.tsx`, so these only show through if the
+ * layout ever renders non-game chrome.
+ */
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
+/*
+ * Bridge runtime CSS variables into Tailwind's design tokens. Why: makes
+ * `bg-background`, `text-foreground`, `font-sans/mono/arcade` resolve to the
+ * values `layout.tsx`'s `next/font` handles and the `:root` block define, so
+ * the fonts loaded in JS are usable as plain utility classes.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -13,6 +25,7 @@
   --font-arcade: var(--font-arcade);
 }
 
+/* Dark-theme override of the page colours; same rationale as `:root` above. */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -20,19 +33,37 @@
   }
 }
 
+/* Base document styling from the template — see `:root` note. */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Mouth open/closed, swapping every 0.5s. */
+/*
+ * Pac-Man's mouth: open <-> closed, swapping every 0.5s.
+ * Why: a cheap two-frame chomp without a sprite sheet or JS.
+ * How: `steps(1)` (set on `.pacman`) makes it a hard cut at 0% and 50%, not a
+ * fade. The two SVGs live in `/public`.
+ * Used by: `.pacman`.
+ */
 @keyframes chomp {
   from { background-image: url("/pacman-open.svg"); }
   50% { background-image: url("/pacman-closed.svg"); }
 }
 
-/* One maze cell, absolutely placed over the board; the image comes from inline style or an animation. */
+/*
+ * The positioned-sprite primitive: one maze cell, absolutely placed over the
+ * board, image supplied by inline style or an animation.
+ * Why: dots, power pellets, the cherry, ghosts and Pac-Man are all "a
+ * cell-sized image at an (x, y)"; sharing this rule keeps `Map.tsx` to one
+ * `<div className="sprite …">` pattern.
+ * How: `position: absolute` (the parent is `relative`); size tied to the
+ * responsive `--maze-cell`; `background: no-repeat center / contain` so any
+ * artwork fits without distortion. The `top`/`left` come from `at()` in
+ * `Map.tsx`.
+ * Used by: every sprite div in `Map.tsx`.
+ */
 .sprite {
   position: absolute;
   width: var(--maze-cell);
@@ -40,25 +71,53 @@ body {
   background: no-repeat center / contain;
 }
 
-/* Arcade dot is 2px of an 8px tile; half-size makes it one pixel wide. */
+/*
+ * Dot size. Why: the arcade pellet is 2px of an 8px tile; 50% background-size
+ * reproduces that "one small pip" look at any cell size. Used by: pellet
+ * sprites in `Map.tsx`.
+ */
 .pellet {
   background-size: 50%;
 }
 
-/* The arcade energizer fills its tile; shown at 60% so it doesn't crowd the walls. */
+/*
+ * Power-pellet size. Why: the arcade energizer fills its tile, but at 100% it
+ * visually collides with the walls here, so it's dialled to 60%. Used by:
+ * power-pellet sprites.
+ */
 .power {
   background-size: 60%;
 }
 
+/*
+ * Cherry size. Why: 80% reads as a bonus item — bigger than a pellet, still
+ * clear of the walls. Used by: the fruit sprite.
+ */
 .cherry {
   background-size: 80%;
 }
 
+/*
+ * Pac-Man. Why/how: runs the {@link chomp} keyframes forever; `steps(1)` makes
+ * the mouth a two-state flip rather than a tween. Facing is a `rotate` set
+ * inline from his direction in `Map.tsx`. Used by: the Pac-Man div.
+ */
 .pacman {
   animation: chomp 1s steps(1) infinite;
 }
 
-/* A ghost waiting in the house: drifts to --bob and back, swapping its face (and legs) at each turn. */
+/*
+ * A ghost still waiting in the house: drift half a tile toward the pocket's
+ * other row and back, swapping face (and leg frame) at each turn.
+ * Why: gives caged ghosts the classic idle bob without simulating them — a
+ * not-yet-released ghost is never moved by `tick`.
+ * How: two parallel animations. `bob` translates to `--bob` (a signed 50% set
+ * per ghost in `Map.tsx`) and back with ease-in-out. `bob-face` hard-cuts
+ * (`steps(1)`) between `--go` and `--back`, two ghost SVGs chosen so the sprite
+ * looks the way it's drifting. All three custom properties are set inline on
+ * the `.bob` div.
+ * Used by: the in-house ghost div in `Map.tsx`.
+ */
 @keyframes bob {
   50% { translate: 0 var(--bob); }
 }
