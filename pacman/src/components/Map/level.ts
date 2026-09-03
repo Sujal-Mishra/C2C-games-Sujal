@@ -57,12 +57,12 @@ export const DOTS = {
   power: tilesOf(CELL.POWER_PELLET),
 };
 
-/** Arcade fruit: one cherry below the ghost house, appearing when the 70th and 170th dots are eaten. */
+/** Fruit slot below the ghost house: a grape (the only fruit, there's one level), appearing when the 70th and 170th dots are eaten. */
 export const FRUIT_SPAWN: Tile = { row: 17, col: 13 };
 export const FRUIT_AT = [70, 170];
 
-/** Arcade points. ponytail: ghost points (200/400/800/1600) come with frightened mode. */
-export const POINTS = { pellet: 10, power: 50, cherry: 100, ghost: 200 };
+/** Arcade points; the grape keeps the level-1 cherry's 100. */
+export const POINTS = { pellet: 10, power: 50, grape: 100, ghost: 200 };
 /** Three Pac-Men per game; one bonus life at 10,000 points. The cherry is points only. */
 export const LIVES = 3;
 export const EXTRA_LIFE_AT = 10_000;
@@ -86,16 +86,20 @@ export const GHOSTS = [
   { name: "inky", tile: { row: 14, col: 12 }, door: { row: 14, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
   { name: "clyde", tile: { row: 15, col: 14 }, door: { row: 15, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
 ];
-/** Dots eaten before each ghost leaves the house (level 1). ponytail: no 4s no-dot fallback timer. */
+/** Dots eaten before each ghost leaves the house (level 1). */
 const RELEASE = [0, 0, 30, 60];
 /** After a death the arcade counts dots from the reset instead, with these thresholds. */
 const RELEASE_AFTER_DEATH = [0, 7, 17, 32];
-/** Ghost `i` exists once its release count is met; before that it's not on the board at all. */
+/** Ghost `i` exists once its release count is met or the no-dot timer freed it; before that it's not on the board at all. */
 export const released = (g: Game, i: number) =>
-  g.eaten.size - g.since >= (g.since ? RELEASE_AFTER_DEATH : RELEASE)[i]; // ponytail: a death at 0 dots keeps the start table
+  i < g.freed || g.eaten.size - g.since >= (g.since ? RELEASE_AFTER_DEATH : RELEASE)[i]; // ponytail: a death at 0 dots keeps the start table
 
 export const TICK_MS = 200; // ms per tile: bigger = slower
 const SEC = 1000 / TICK_MS;
+/** Level-1 arcade: 4s without a dot lets the next ghost out anyway. */
+const RELEASE_IDLE = 4 * SEC;
+/** The fruit leaves the board after 9s if it isn't eaten. */
+export const FRUIT_TICKS = 9 * SEC;
 /** Level-1 mode phases in ticks, scatter first, alternating; chase forever after the last. */
 const PHASES = [7, 20, 7, 20, 5, 20, 5].map((s) => s * SEC);
 /** Frightened lasts 6s at level 1, flashing white for the last 2s. */
@@ -149,12 +153,19 @@ export function advance(pos: Tile, want: Dir, dir: Dir): { pos: Tile; dir: Dir }
  * `mode`: `scared` after a power pellet, `eyes` once eaten (running home to regenerate).
  */
 export type Ghost = { pos: Tile; dir: Dir; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes" };
-/** `eaten` holds dot keys; `fruitTaken` counts cherries collected so far; `t` is the tick count. */
+/** `eaten` holds dot keys; `t` is the tick count. */
 export type Game = {
   pos: Tile;
   dir: Dir;
   eaten: Set<string>;
-  fruitTaken: number;
+  /** Ticks the fruit stays on the board; 0 = no fruit out. */
+  fruit: number;
+  /** Fruits that have appeared so far (eaten or timed out), indexing FRUIT_AT. */
+  fruits: number;
+  /** Ticks since the last dot, for the release timer. */
+  idle: number;
+  /** Ghosts let out by the release timer regardless of dots: indexes below this are released. */
+  freed: number;
   ghosts: Ghost[];
   t: number;
   score: number;
@@ -176,7 +187,10 @@ export const NEW_GAME: Game = {
   pos: PACMAN_SPAWN,
   dir: [0, 0],
   eaten: new Set(),
-  fruitTaken: 0,
+  fruit: 0,
+  fruits: 0,
+  idle: 0,
+  freed: 0,
   ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [], mode: "normal" })),
   t: 0,
   score: 0,
@@ -188,14 +202,16 @@ export const NEW_GAME: Game = {
   bite: null,
 };
 
-/** A cherry is on the board once the next trigger is reached and until it's taken. */
-export const fruitOut = (g: Game) => g.eaten.size >= (FRUIT_AT[g.fruitTaken] ?? Infinity);
+export const fruitOut = (g: Game) => g.fruit > 0;
 
 /** Dot key -> points. */
 const DOT_KEYS = new Map([
   ...DOTS.pellets.map((t) => [key(t), POINTS.pellet] as const),
   ...DOTS.power.map((t) => [key(t), POINTS.power] as const),
 ]);
+
+/** Every dot eaten: the one level is done. */
+export const cleared = (g: Game) => g.eaten.size === DOT_KEYS.size;
 
 /** Arcade tie-break order when two directions are equally close to the target. */
 const DIRS: Dir[] = [[-1, 0], [0, -1], [1, 0], [0, 1]];
@@ -275,21 +291,28 @@ const caught = (g: Game) => g.ghosts.some((gh) => gh.out && gh.mode === "normal"
 
 /** One tick: move Pac-Man, eat whatever he landed on, move the ghosts, then check for a bite or a death. */
 export function tick(g: Game, want: Dir): Game {
-  if (!g.lives) return g; // game over
+  if (!g.lives || cleared(g)) return g; // game over or completed
   if (g.bite) return { ...g, bite: g.bite.left > 1 ? { ...g.bite, left: g.bite.left - 1 } : null }; // everything freezes, fright clock included
   const { pos, dir } = advance(g.pos, want, g.dir);
   const k = key(pos);
   const dot = g.eaten.has(k) ? 0 : (DOT_KEYS.get(k) ?? 0);
   const eaten = dot ? new Set(g.eaten).add(k) : g.eaten;
-  const fruit = fruitOut(g) && k === key(FRUIT_SPAWN);
-  const fruitTaken = g.fruitTaken + (fruit ? 1 : 0);
-  const score = g.score + dot + (fruit ? POINTS.cherry : 0);
+  const grape = fruitOut(g) && k === key(FRUIT_SPAWN);
+  // The fruit counts down while out; the next one appears once its dot trigger is reached and no fruit is out.
+  let fruit = grape ? 0 : Math.max(0, g.fruit - 1), fruits = g.fruits;
+  if (!fruit && eaten.size >= (FRUIT_AT[fruits] ?? Infinity)) { fruit = FRUIT_TICKS; fruits++; }
+  const score = g.score + dot + (grape ? POINTS.grape : 0);
   const bonus = g.bonus || score >= EXTRA_LIFE_AT;
   const lives = g.lives + (bonus && !g.bonus ? 1 : 0);
   const t = g.t + 1;
   const power = dot === POINTS.power;
   const fright = power ? FRIGHT.ticks : Math.max(0, g.fright - 1);
-  const next = { ...g, pos, dir, eaten, fruitTaken, score, bonus, lives, t, fright, combo: power ? 0 : g.combo };
+  // 4s without a dot frees the next ghost still waiting in the house.
+  let idle = dot ? 0 : g.idle + 1, freed = g.freed;
+  const waiting = GHOSTS.findIndex((_, i) => !released(g, i));
+  if (idle >= RELEASE_IDLE && waiting >= 0) { idle = 0; freed = waiting + 1; }
+  const next = { ...g, pos, dir, eaten, fruit, fruits, score, bonus, lives, t, fright, idle, freed, combo: power ? 0 : g.combo };
+  if (cleared(next)) return next; // last dot: the ghosts don't get a move on it
   // A power pellet, like a mode switch, turns every ghost around. ponytail: the mode timer keeps running while frightened.
   const flip = scatter(t) !== scatter(g.t) || power;
   const ghosts = g.ghosts.map((gh, i) => {
@@ -310,5 +333,5 @@ export function tick(g: Game, want: Dir): Game {
   }
   if (!caught(after)) return after;
   // Death: everyone back to their start tiles, mode clock and fright reset; dots and score stay.
-  return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, fright: 0 };
+  return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, fright: 0, idle: 0, freed: 0 };
 }

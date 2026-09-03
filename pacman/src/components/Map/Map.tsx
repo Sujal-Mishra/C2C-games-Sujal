@@ -12,12 +12,14 @@ import {
   MAZE_ROWS,
   NEW_GAME,
   TICK_MS,
+  cleared,
   fruitOut,
   isWall,
   key,
   released,
   tick,
   type Dir,
+  type Game,
   type Tile,
 } from "./level";
 
@@ -29,20 +31,32 @@ const KEYS: Record<string, Dir> = {
   arrowright: [0, 1], d: [0, 1],
 };
 
-/** Game state, advanced on a fixed tick; the arrow keys / WASD set where Pac-Man wants to go. */
+const sound = (name: string) => new Audio(`/sounds/${name}`);
+const play = (name: string) => sound(name).play().catch(() => {});
+
+/**
+ * Game state, advanced on a fixed tick; the arrow keys / WASD set where Pac-Man wants to go.
+ * The board waits for the first key, which plays the opening jingle; ticking starts when it ends.
+ */
 function useGame() {
   const [game, setGame] = useState(NEW_GAME);
   const want = useRef(STOP);
+  const go = useRef(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const d = KEYS[e.key.toLowerCase()];
       if (!d) return;
+      if (want.current === STOP) {
+        const jingle = sound("opening_song.mp3");
+        jingle.onended = () => (go.current = true);
+        jingle.play().catch(() => (go.current = true)); // audio blocked: just start
+      }
       want.current = d;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
-    const timer = setInterval(() => setGame((g) => tick(g, want.current)), TICK_MS);
+    const timer = setInterval(() => go.current && setGame((g) => tick(g, want.current)), TICK_MS);
     return () => {
       window.removeEventListener("keydown", onKey);
       clearInterval(timer);
@@ -50,6 +64,29 @@ function useGame() {
   }, []);
 
   return game;
+}
+
+/** Arcade sounds off the change between ticks: one-shots for events, loops for the siren and chomping. */
+function useSounds(game: Game) {
+  const prev = useRef(game);
+  const loops = useRef<Record<string, HTMLAudioElement>>({});
+  useEffect(() => {
+    const p = prev.current;
+    prev.current = game;
+    const loop = (name: string, on: boolean) => {
+      const a = (loops.current[name] ??= Object.assign(sound(name), { loop: true }));
+      if (!on) a.pause();
+      else if (a.paused) a.play().catch(() => {});
+    };
+    if (game.lives < p.lives) play("die.mp3");
+    if (game.lives > p.lives) play("extra-lives.mp3");
+    if (game.bite && !p.bite) play("eatghost.mp3");
+    if (game.fright > p.fright) play("eatpill.mp3");
+    if (p.fruit && !game.fruit && key(game.pos) === key(FRUIT_SPAWN)) play("eatfruit.wav");
+    loop("eating.mp3", game.eaten.size > p.eaten.size);
+    loop("siren.mp3", game.t > 0 && game.lives > 0 && !cleared(game) && !game.bite); // ponytail: no separate frightened siren
+  }, [game]);
+  useEffect(() => () => Object.values(loops.current).forEach((a) => a.pause()), []);
 }
 
 /** Inline position for a `.sprite` sitting on `t`. */
@@ -114,13 +151,22 @@ function drawMaze(canvas: HTMLCanvasElement) {
 
 export default function Map() {
   const game = useGame();
+  useSounds(game);
   const { pos, dir } = game;
   const left = (t: Tile) => !game.eaten.has(key(t));
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => drawMaze(canvas.current!), []);
 
-  if (!game.lives) {
-    return <p className="font-arcade text-[#ffb7c5] text-2xl sm:text-4xl">GAME OVER</p>;
+  const done = cleared(game);
+  if (!game.lives || done) {
+    return (
+      <div className="font-arcade text-center">
+        <p className={`text-2xl sm:text-4xl ${done ? "text-[#00ff00]" : "text-[#ffb7c5]"}`}>
+          {done ? "GAME COMPLETED" : "GAME OVER"}
+        </p>
+        <p className="mt-8 text-base text-white sm:text-2xl">SCORE {game.score}</p>
+      </div>
+    );
   }
 
   return (
@@ -140,7 +186,7 @@ export default function Map() {
       />
       {DOTS.pellets.filter(left).map((t) => sprite(t, "/pellet.svg", "sprite pellet"))}
       {DOTS.power.filter(left).map((t) => sprite(t, "/power-pellet.svg", "sprite power"))}
-      {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}
+      {fruitOut(game) && sprite(FRUIT_SPAWN, "/grape.svg", "sprite grape")}
       {game.ghosts.map((gh, i) => {
         const frame = (game.t >> 1) & 1;
         const face = FACE[String(gh.dir)] ?? "up";

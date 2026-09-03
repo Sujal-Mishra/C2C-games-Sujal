@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EXTRA_LIFE_AT, FRIGHT, FRUIT_AT, FRUIT_SPAWN, LIVES, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Dir, type Ghost } from "./level.ts";
+import { DOTS, EXTRA_LIFE_AT, FRIGHT, FRUIT_AT, FRUIT_SPAWN, FRUIT_TICKS, LIVES, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, cleared, fruitOut, key, moveGhost, released, scatter, step, tick, type Dir, type Ghost } from "./level.ts";
 
 test("walls block, open tiles pass", () => {
   assert.equal(step(1, 1, -1, 0), null); // into the top border
@@ -28,8 +28,10 @@ test("advance turns when it can, else keeps going, else stops", () => {
   assert.deepEqual(advance({ row: 1, col: 12 }, up, right), { pos: { row: 1, col: 12 }, dir: right });
 });
 
-test("tick eats the dot it lands on; the cherry shows at each FRUIT_AT trigger and is taken on contact", () => {
+test("tick eats the dot it lands on; the grape shows at each FRUIT_AT trigger, is taken on contact or leaves after 9s", () => {
   const dots = (n: number) => new Set(Array.from({ length: n }, (_, i) => `dot${i}`));
+  // Eat (1,2) from (1,1) with `n` fake dots already gone, so the dot count lands exactly on n + 1.
+  const eat = (g: typeof NEW_GAME, n: number) => tick({ ...g, pos: { row: 1, col: 1 }, eaten: dots(n) }, [0, 1]);
   const grab = (g: typeof NEW_GAME) =>
     tick({ ...g, pos: { row: FRUIT_SPAWN.row, col: FRUIT_SPAWN.col - 1 } }, [0, 1]);
 
@@ -41,17 +43,44 @@ test("tick eats the dot it lands on; the cherry shows at each FRUIT_AT trigger a
   assert.equal(g.score, POINTS.pellet + POINTS.power);
   assert.equal(tick(g, [0, 1]).score, g.score, "an eaten dot scores nothing");
 
-  g = grab({ ...g, eaten: dots(FRUIT_AT[0]), score: 0 });
-  assert.deepEqual(g.pos, FRUIT_SPAWN);
-  assert.equal(g.fruitTaken, 1);
-  assert.equal(g.score, POINTS.cherry + POINTS.pellet, "cherry plus the dot under it");
-  assert.equal(fruitOut(g), false, "second cherry waits for the next trigger");
-
-  g = { ...g, eaten: dots(FRUIT_AT[1]) };
-  assert.equal(fruitOut(g), true);
+  g = eat({ ...g, score: 0 }, FRUIT_AT[0] - 1);
+  assert.equal(fruitOut(g), true, "70th dot brings the grape out");
+  assert.equal(g.fruit, FRUIT_TICKS);
   g = grab(g);
-  assert.equal(g.fruitTaken, 2);
-  assert.equal(fruitOut(g), false, "no third cherry");
+  assert.deepEqual(g.pos, FRUIT_SPAWN);
+  assert.equal(g.fruits, 1);
+  assert.equal(g.score, POINTS.pellet + POINTS.grape + POINTS.pellet, "grape plus the dot under it");
+  assert.equal(fruitOut(g), false, "second grape waits for the next trigger");
+
+  g = eat(g, FRUIT_AT[1] - 1);
+  assert.equal(fruitOut(g), true);
+  for (let i = 1; i < FRUIT_TICKS; i++) g = { ...tick(g, [0, 0]), ghosts: NEW_GAME.ghosts }; // nobody home to bite
+  assert.equal(fruitOut(g), true, "still out on the last tick");
+  g = tick(g, [0, 0]);
+  assert.equal(fruitOut(g), false, "gone after 9s");
+  assert.equal(g.fruits, 2);
+  assert.equal(grab(g).score, g.score + POINTS.pellet, "nothing to grab; no third grape");
+});
+
+test("4s without a dot lets the next ghost out of the house", () => {
+  let g = NEW_GAME; // standing still at spawn: no dots eaten
+  const idle = (n: number) => { for (let i = 0; i < n; i++) g = { ...tick(g, [0, 0]), ghosts: NEW_GAME.ghosts }; };
+  idle(19);
+  assert.deepEqual([2, 3].map((i) => released(g, i)), [false, false]);
+  idle(1);
+  assert.deepEqual([2, 3].map((i) => released(g, i)), [true, false], "inky freed at 4s");
+  idle(20);
+  assert.equal(released(g, 3), true, "clyde 4s later");
+  assert.equal(tick({ ...g, pos: { row: 1, col: 1 } }, [0, 1]).idle, 0, "a dot restarts the clock");
+});
+
+test("eating the last dot completes the game and freezes it", () => {
+  const all = new Set([...DOTS.pellets, ...DOTS.power].map(key));
+  all.delete("1,2");
+  const g = tick({ ...NEW_GAME, pos: { row: 1, col: 1 }, eaten: all }, [0, 1]);
+  assert.equal(cleared(g), true);
+  assert.equal(g.lives, LIVES);
+  assert.equal(tick(g, [0, 1]), g);
 });
 
 test("pac-man can't enter the ghost house", () => {
