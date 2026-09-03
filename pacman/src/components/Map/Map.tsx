@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   CELL,
   DOTS,
+  FRIGHT,
   FRUIT_SPAWN,
   GHOSTS,
   MAZE,
@@ -145,10 +146,15 @@ export default function Map() {
       {DOTS.pellets.filter(left).map((t) => sprite(t, "/pellet.svg", "sprite pellet"))}
       {DOTS.power.filter(left).map((t) => sprite(t, "/power-pellet.svg", "sprite power"))}
       {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}
-      {game.ghosts.map((gh, i) =>
-        released(game, i) &&
-        sprite(gh.pos, `/ghosts/${GHOSTS[i].name}-${FACE[String(gh.dir)] ?? "up"}-${(game.t >> 1) & 1}.svg`, "sprite", GHOSTS[i].name),
-      )}
+      {game.ghosts.map((gh, i) => {
+        const frame = (game.t >> 1) & 1;
+        const src = !game.fright
+          ? `${GHOSTS[i].name}-${FACE[String(gh.dir)] ?? "up"}-${frame}`
+          : game.fright <= FRIGHT.flash && game.t & 1
+            ? `scared-white-${frame}`
+            : `scared-${frame}`;
+        return released(game, i) && sprite(gh.pos, `/ghosts/${src}.svg`, "sprite", GHOSTS[i].name);
+      })}
       <output aria-label="Score" className="fixed top-4 right-4 font-mono text-2xl text-white">
         {game.score}
       </output>

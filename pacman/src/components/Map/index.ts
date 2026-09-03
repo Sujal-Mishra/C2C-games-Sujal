@@ -18,6 +18,7 @@ export {
   released,
   DOTS,
   FRUIT_AT,
+  FRIGHT,
   FRUIT_SPAWN,
   POINTS,
   GHOST_HOUSE,

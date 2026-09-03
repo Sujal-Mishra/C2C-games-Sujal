@@ -92,6 +92,8 @@ export const TICK_MS = 200; // ms per tile: bigger = slower
 const SEC = 1000 / TICK_MS;
 /** Level-1 mode phases in ticks, scatter first, alternating; chase forever after the last. */
 const PHASES = [7, 20, 7, 20, 5, 20, 5].map((s) => s * SEC);
+/** Frightened lasts 6s at level 1, flashing white for the last 2s. */
+export const FRIGHT = { ticks: 6 * SEC, flash: 2 * SEC };
 export function scatter(t: number): boolean {
   for (let i = 0; i < PHASES.length; i++) {
     if (t < PHASES[i]) return i % 2 === 0;
@@ -147,6 +149,8 @@ export type Game = {
   ghosts: Ghost[];
   t: number;
   score: number;
+  /** Frightened ticks left; 0 = normal. */
+  fright: number;
 };
 
 export const NEW_GAME: Game = {
@@ -157,6 +161,7 @@ export const NEW_GAME: Game = {
   ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [] })),
   t: 0,
   score: 0,
+  fright: 0,
 };
 
 /** A cherry is on the board once the next trigger is reached and until it's taken. */
@@ -191,20 +196,23 @@ const TRAIL = 4;
  * Arcade ghost step: never reverse, take the open neighbour closest (straight
  * line) to `target`, ties broken up > left > down > right. `flip` reverses
  * first (mode change). A ghost that's out may not re-enter the house.
+ * `target: null` is frightened: a random open direction instead.
  * Non-arcade: tiles in `trail` are taken only if nothing else is open.
  */
-export function moveGhost(g: Ghost, target: Tile, flip = false): Ghost {
+export function moveGhost(g: Ghost, target: Tile | null, flip = false): Ghost {
   const dir: Dir = flip ? [-g.dir[0], -g.dir[1]] : g.dir;
-  let best: { pos: Tile; dir: Dir; fresh: boolean } | undefined;
-  for (const d of DIRS) {
-    if (d[0] === -dir[0] && d[1] === -dir[1]) continue;
+  const open = DIRS.flatMap((d) => {
+    if (d[0] === -dir[0] && d[1] === -dir[1]) return [];
     const pos = step(g.pos.row, g.pos.col, d[0], d[1], !g.out);
-    if (!pos) continue;
-    const fresh = !g.trail.includes(key(pos));
-    const better = !best || (fresh && !best.fresh) || (fresh === best.fresh && dist2(pos, target) < dist2(best.pos, target));
-    if (better) best = { pos, dir: d, fresh };
-  }
-  if (!best) return { ...g, dir }; // boxed in: turn around, move next tick
+    return pos ? [{ pos, dir: d, fresh: !g.trail.includes(key(pos)) }] : [];
+  });
+  if (!open.length) return { ...g, dir }; // boxed in: turn around, move next tick
+  let best = open[Math.floor(Math.random() * open.length)];
+  if (target)
+    for (const c of open) {
+      const better = (c.fresh && !best.fresh) || (c.fresh === best.fresh && dist2(c.pos, target) < dist2(best.pos, target));
+      if (c === open[0] || better) best = c;
+    }
   const trail = [key(g.pos), ...g.trail].slice(0, TRAIL);
   return { pos: best.pos, dir: best.dir, out: g.out || !house(best.pos), trail };
 }
@@ -219,11 +227,15 @@ export function tick(g: Game, want: Dir): Game {
   const fruitTaken = g.fruitTaken + (fruit ? 1 : 0);
   const score = g.score + dot + (fruit ? POINTS.cherry : 0);
   const t = g.t + 1;
-  const next = { ...g, pos, dir, eaten, fruitTaken, score, t };
-  const flip = scatter(t) !== scatter(g.t);
+  const power = dot === POINTS.power;
+  const fright = power ? FRIGHT.ticks : Math.max(0, g.fright - 1);
+  const next = { ...g, pos, dir, eaten, fruitTaken, score, t, fright };
+  // A power pellet, like a mode switch, turns every ghost around. ponytail: the mode timer keeps running while frightened.
+  const flip = scatter(t) !== scatter(g.t) || power;
   const ghosts = g.ghosts.map((gh, i) => {
     if (!gh.out && !released(next, i)) return gh;
-    const target = !gh.out ? GHOSTS[i].door : scatter(t) ? GHOSTS[i].corner : TARGET[i](next);
+    if (fright && !power && t % 2) return gh; // frightened ghosts crawl at half speed
+    const target = !gh.out ? GHOSTS[i].door : fright ? null : scatter(t) ? GHOSTS[i].corner : TARGET[i](next);
     return moveGhost(gh, target, flip);
   });
   return { ...next, ghosts };

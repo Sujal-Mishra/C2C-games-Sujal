@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
+import { FRIGHT, FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
 
 test("walls block, open tiles pass", () => {
   assert.equal(step(1, 1, -1, 0), null); // into the top border
@@ -94,4 +94,21 @@ test("ghosts leave the house in release order and stay off walls", () => {
   g = { ...g, eaten: new Set(Array.from({ length: 60 }, (_, i) => `d${i}`)) };
   for (let i = 0; i < 20; i++) g = tick(g, [0, 0]);
   assert.deepEqual(g.ghosts.map((x) => x.out), [true, true, true, true]);
+});
+
+test("a power pellet frightens the ghosts: reverse, wander at half speed, time out", () => {
+  // Ghost heading up at (4,1); Pac-Man steps left from (1,2) onto the power pellet at (1,1).
+  const blinky: Ghost = { pos: { row: 4, col: 1 }, dir: [-1, 0], out: true, trail: [] };
+  let g = tick({ ...NEW_GAME, pos: { row: 1, col: 2 }, ghosts: [blinky, ...NEW_GAME.ghosts.slice(1)] }, [0, -1]);
+  assert.equal(g.fright, FRIGHT.ticks);
+  assert.notDeepEqual(g.ghosts[0].pos, { row: 3, col: 1 }, "reversed, so not carrying on up");
+
+  for (let i = 1; i < FRIGHT.ticks; i++) {
+    const before = g.ghosts[0].pos;
+    g = tick(g, [0, 0]);
+    if (g.t % 2) assert.deepEqual(g.ghosts[0].pos, before, "half speed: rests on odd ticks");
+    assert.notEqual(MAZE[g.ghosts[0].pos.row][g.ghosts[0].pos.col], 2);
+  }
+  assert.equal(g.fright, 1);
+  assert.equal(tick(g, [0, 0]).fright, 0);
 });
