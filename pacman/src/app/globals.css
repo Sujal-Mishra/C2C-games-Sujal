@@ -24,3 +24,17 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Mouth open/closed, swapping every 0.5s. */
+@keyframes chomp {
+  from { background-image: url("/pacman-open.svg"); }
+  50% { background-image: url("/pacman-closed.svg"); }
+}
+
+.pacman {
+  position: absolute;
+  width: var(--maze-cell);
+  height: var(--maze-cell);
+  background: no-repeat center / contain;
+  animation: chomp 1s steps(1) infinite;
+}

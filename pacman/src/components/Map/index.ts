@@ -7,5 +7,8 @@ export {
   NUM_GHOSTS,
   TELEPORTS,
   isWall,
+  step,
+  advance,
+  PACMAN_SPAWN,
 } from "./level";
-export type { CellCode } from "./level";
+export type { CellCode, Dir, Tile } from "./level";
