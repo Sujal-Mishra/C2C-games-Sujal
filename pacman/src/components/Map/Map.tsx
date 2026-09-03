@@ -31,8 +31,23 @@ const KEYS: Record<string, Dir> = {
   arrowright: [0, 1], d: [0, 1],
 };
 
-const sound = (name: string) => new Audio(`/sounds/${name}`);
+/** Every Audio element ever started through `sound`, so `stopAll` can silence the game in one go. */
+const playing = new Set<HTMLAudioElement>();
+
+const sound = (name: string) => {
+  const a = new Audio(`/sounds/${name}`);
+  playing.add(a);
+  a.addEventListener("ended", () => playing.delete(a)); // one-shots drop out once they finish
+  return a;
+};
+
 const play = (name: string) => sound(name).play().catch(() => {});
+
+/** Pauses and rewinds every sound the game has going, one-shots and loops alike. */
+const stopAll = () => {
+  playing.forEach((a) => { a.pause(); a.currentTime = 0; });
+  playing.clear();
+};
 
 /**
  * Game state, advanced on a fixed tick; the arrow keys / WASD set where Pac-Man wants to go.
@@ -73,6 +88,7 @@ function useSounds(game: Game) {
   useEffect(() => {
     const p = prev.current;
     prev.current = game;
+    if (!game.lives || cleared(game)) { stopAll(); return; } // the game just ended, win or lose: cut everything, start nothing new
     const loop = (name: string, on: boolean) => {
       const a = (loops.current[name] ??= Object.assign(sound(name), { loop: true }));
       if (!on) a.pause();
@@ -186,7 +202,7 @@ export default function Map() {
       />
       {DOTS.pellets.filter(left).map((t) => sprite(t, "/pellet.svg", "sprite pellet"))}
       {DOTS.power.filter(left).map((t) => sprite(t, "/power-pellet.svg", "sprite power"))}
-      {fruitOut(game) && sprite(FRUIT_SPAWN, "/grape.svg", "sprite grape")}
+      {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}
       {game.ghosts.map((gh, i) => {
         const frame = (game.t >> 1) & 1;
         const face = FACE[String(gh.dir)] ?? "up";

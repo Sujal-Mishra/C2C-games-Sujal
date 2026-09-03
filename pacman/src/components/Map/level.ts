@@ -57,12 +57,12 @@ export const DOTS = {
   power: tilesOf(CELL.POWER_PELLET),
 };
 
-/** Fruit slot below the ghost house: a grape (the only fruit, there's one level), appearing when the 70th and 170th dots are eaten. */
+/** Fruit slot below the ghost house: a cherry (the only fruit, there's one level), appearing when the 70th and 170th dots are eaten. */
 export const FRUIT_SPAWN: Tile = { row: 17, col: 13 };
 export const FRUIT_AT = [70, 170];
 
-/** Arcade points; the grape keeps the level-1 cherry's 100. */
-export const POINTS = { pellet: 10, power: 50, grape: 100, ghost: 200 };
+/** Arcade points, level 1. */
+export const POINTS = { pellet: 10, power: 50, cherry: 100, ghost: 200 };
 /** Three Pac-Men per game; one bonus life at 10,000 points. The cherry is points only. */
 export const LIVES = 3;
 export const EXTRA_LIFE_AT = 10_000;
@@ -289,8 +289,18 @@ function goHome(gh: Ghost, i: number): Ghost {
   return gh;
 }
 
-/** Arcade collision: same tile as an unfrightened ghost. ponytail: swapping tiles in one tick passes through, as the arcade does. */
-const caught = (g: Game) => g.ghosts.some((gh) => gh.out && gh.mode === "normal" && key(gh.pos) === key(g.pos));
+/**
+ * Arcade collision: Pac-Man and an unfrightened ghost end the tick on the same
+ * tile, or crossed paths head-on and swapped tiles without ever sharing one.
+ */
+function caught(before: Game, after: Game): boolean {
+  return after.ghosts.some((gh, i) => {
+    if (!gh.out || gh.mode !== "normal") return false;
+    if (key(gh.pos) === key(after.pos)) return true;
+    const was = before.ghosts[i].pos;
+    return key(gh.pos) === key(before.pos) && key(was) === key(after.pos);
+  });
+}
 
 /** One tick: move Pac-Man, eat whatever he landed on, move the ghosts, then check for a bite or a death. */
 export function tick(g: Game, want: Dir): Game {
@@ -300,11 +310,11 @@ export function tick(g: Game, want: Dir): Game {
   const k = key(pos);
   const dot = g.eaten.has(k) ? 0 : (DOT_KEYS.get(k) ?? 0);
   const eaten = dot ? new Set(g.eaten).add(k) : g.eaten;
-  const grape = fruitOut(g) && k === key(FRUIT_SPAWN);
+  const cherry = fruitOut(g) && k === key(FRUIT_SPAWN);
   // The fruit counts down while out; the next one appears once its dot trigger is reached and no fruit is out.
-  let fruit = grape ? 0 : Math.max(0, g.fruit - 1), fruits = g.fruits;
+  let fruit = cherry ? 0 : Math.max(0, g.fruit - 1), fruits = g.fruits;
   if (!fruit && eaten.size >= (FRUIT_AT[fruits] ?? Infinity)) { fruit = FRUIT_TICKS; fruits++; }
-  const score = g.score + dot + (grape ? POINTS.grape : 0);
+  const score = g.score + dot + (cherry ? POINTS.cherry : 0);
   const bonus = g.bonus || score >= EXTRA_LIFE_AT;
   const lives = g.lives + (bonus && !g.bonus ? 1 : 0);
   const t = g.t + 1;
@@ -335,7 +345,7 @@ export function tick(g: Game, want: Dir): Game {
     const eyes = ghosts.map((gh, i) => (i === bit ? { ...gh, mode: "eyes" as const } : gh));
     return { ...after, ghosts: eyes, score: score + points, combo: g.combo + 1, bite: { pos, points, left: SEC } };
   }
-  if (!caught(after)) return after;
+  if (!caught(g, after)) return after;
   // Death: everyone back to their start tiles, mode clock and fright reset; dots and score stay.
   return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, clock: 0, fright: 0, idle: 0, freed: 0 };
 }
