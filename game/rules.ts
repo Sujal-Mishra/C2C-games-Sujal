@@ -4,6 +4,9 @@ export const SETTLE_MS = 1000;
 export const LINEAR_SPEED_LIMIT = 0.18;
 export const ANGULAR_SPEED_LIMIT = 0.02;
 export const POINTS_PER_PIECE = 100;
+export const INITIAL_LIVES = 2;
+export const CAMERA_TRIGGER_RATIO = 0.5;
+export const AIM_MOVE_STEP = 8;
 
 export const INITIAL_GAME_STATE: GameState = {
   phase: "aiming",
@@ -56,13 +59,23 @@ export function lockPiece(state: GameState): GameState {
   return { ...state, score: state.score + POINTS_PER_PIECE, settleStartedAt: null };
 }
 
-export function detectFailure(
-  state: GameState,
-  bodyCentersY: readonly number[],
-  failureBoundary: number
-): GameState {
-  if (!bodyCentersY.some((y) => y > failureBoundary)) return state;
-  return { ...state, phase: "gameOver", settleStartedAt: null };
+export function loseLife(lives: number): number {
+  return Math.max(0, Math.floor(lives) - 1);
+}
+
+export function getEndlessCameraTargetY(
+  currentCameraY: number,
+  stackTopY: number,
+  viewportHeight: number,
+  triggerRatio: number = CAMERA_TRIGGER_RATIO
+): number {
+  const triggerY = currentCameraY + viewportHeight * triggerRatio;
+  if (stackTopY > triggerY) return currentCameraY;
+  return Math.min(currentCameraY, stackTopY - viewportHeight * triggerRatio);
+}
+
+export function hasPieceMissed(bodyCenterY: number, failureBoundary: number): boolean {
+  return bodyCenterY > failureBoundary;
 }
 
 export function restartGame(): GameState {

@@ -2,6 +2,21 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, test } from "vitest";
 import { LogoStackGame } from "./LogoStackGame";
 
+function fireTouchPointer(
+  target: Element,
+  type: "pointerdown" | "pointerup",
+  { clientX, clientY, pointerId }: { clientX: number; clientY: number; pointerId: number }
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerType: { value: "touch" },
+    pointerId: { value: pointerId },
+    clientX: { value: clientX },
+    clientY: { value: clientY }
+  });
+  fireEvent(target, event);
+}
+
 test("mouse movement and clicking do not control or drop the piece", async () => {
   render(<LogoStackGame />);
   const playfield = screen.getByRole("application", { name: /logo stack playfield/i });
@@ -16,7 +31,7 @@ test("mouse movement and clicking do not control or drop the piece", async () =>
 
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(piece.style.left).toBe(startingLeft);
-  expect(screen.getByRole("button", { name: /^drop$/i })).toBeEnabled();
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
 });
 
 test("A, D, and arrow keys move while Space rotates and Enter continuously drops", async () => {
@@ -28,7 +43,9 @@ test("A, D, and arrow keys move while Space rotates and Enter continuously drops
   const startingTop = Number.parseFloat(piece.style.top);
 
   fireEvent.keyDown(window, { key: "d" });
-  await waitFor(() => expect(piece.style.left).not.toBe(startingLeft));
+  await waitFor(() => {
+    expect(Number.parseFloat(piece.style.left) - Number.parseFloat(startingLeft)).toBeCloseTo(8 / 9, 2);
+  });
 
   const afterD = piece.style.left;
   fireEvent.keyDown(window, { key: "ArrowLeft" });
@@ -53,20 +70,26 @@ test("A, D, and arrow keys move while Space rotates and Enter continuously drops
   );
 });
 
-test("touch tap rotates and horizontal swipe moves without dropping", async () => {
+test("touch tap rotates, horizontal swipe nudges, and downward swipe drops", async () => {
   render(<LogoStackGame />);
   const playfield = screen.getByRole("application", { name: /logo stack playfield/i });
   const piece = await screen.findByAltText("Current logo piece");
   const startingLeft = piece.style.left;
 
-  fireEvent.pointerDown(playfield, { pointerId: 1, pointerType: "touch", clientX: 450, clientY: 200 });
-  fireEvent.pointerUp(playfield, { pointerId: 1, pointerType: "touch", clientX: 450, clientY: 200 });
+  fireTouchPointer(playfield, "pointerdown", { pointerId: 1, clientX: 450, clientY: 200 });
+  fireTouchPointer(playfield, "pointerup", { pointerId: 1, clientX: 450, clientY: 200 });
   await waitFor(() => expect(piece.style.transform).toContain("1.570796"));
 
-  fireEvent.pointerDown(playfield, { pointerId: 2, pointerType: "touch", clientX: 450, clientY: 200 });
-  fireEvent.pointerUp(playfield, { pointerId: 2, pointerType: "touch", clientX: 560, clientY: 205 });
-  await waitFor(() => expect(piece.style.left).not.toBe(startingLeft));
-  expect(screen.getByRole("button", { name: /^drop$/i })).toBeEnabled();
+  fireTouchPointer(playfield, "pointerdown", { pointerId: 2, clientX: 450, clientY: 200 });
+  fireTouchPointer(playfield, "pointerup", { pointerId: 2, clientX: 560, clientY: 205 });
+  await waitFor(() => {
+    expect(Number.parseFloat(piece.style.left) - Number.parseFloat(startingLeft)).toBeCloseTo(8 / 9, 2);
+  });
+
+  const aimingTop = Number.parseFloat(piece.style.top);
+  fireTouchPointer(playfield, "pointerdown", { pointerId: 3, clientX: 450, clientY: 120 });
+  fireTouchPointer(playfield, "pointerup", { pointerId: 3, clientX: 452, clientY: 210 });
+  await waitFor(() => expect(Number.parseFloat(piece.style.top)).toBeGreaterThan(aimingTop));
 });
 
 test("Enter releases the piece visibly, lets it settle on the platform, then locks it", async () => {

@@ -2,9 +2,11 @@ import { describe, expect, test } from "vitest";
 import type { GameState, QuarterTurn } from "./types";
 import {
   clampSpawnX,
-  detectFailure,
   dropPiece,
+  getEndlessCameraTargetY,
+  hasPieceMissed,
   lockPiece,
+  loseLife,
   pickShape,
   restartGame,
   rotateQuarterTurn,
@@ -60,9 +62,21 @@ describe("settling rules", () => {
 });
 
 describe("run lifecycle", () => {
-  test("a body below the failure boundary ends the run", () => {
-    expect(detectFailure(initial, [400, 721], 720).phase).toBe("gameOver");
-    expect(detectFailure(initial, [400, 719], 720).phase).toBe("aiming");
+  test("a run has two lives and cannot drop below zero", () => {
+    expect(loseLife(2)).toBe(1);
+    expect(loseLife(1)).toBe(0);
+    expect(loseLife(0)).toBe(0);
+  });
+
+  test("the endless camera follows the stack once it reaches mid-screen", () => {
+    expect(getEndlessCameraTargetY(0, 400, 650)).toBe(0);
+    expect(getEndlessCameraTargetY(0, 300, 650)).toBe(-25);
+    expect(getEndlessCameraTargetY(-25, 250, 650)).toBe(-75);
+  });
+
+  test("only an active piece below the failure boundary counts as a miss", () => {
+    expect(hasPieceMissed(721, 720)).toBe(true);
+    expect(hasPieceMissed(719, 720)).toBe(false);
   });
 
   test("restart clears phase, score, rotation, and settlement", () => {

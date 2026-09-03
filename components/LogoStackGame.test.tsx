@@ -1,22 +1,21 @@
 import { forwardRef, useImperativeHandle } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 
 const canvasActions = vi.hoisted(() => ({
   moveBy: vi.fn(),
   rotate: vi.fn(),
-  drop: vi.fn(),
-  clearLockedPieces: vi.fn()
+  drop: vi.fn()
 }));
 
 vi.mock("./GameCanvas", () => ({
   GameCanvas: forwardRef(function FakeCanvas(props: {
     onLocked: () => void;
+    onPieceMissed: () => boolean;
     onGameOver: () => void;
     onPhaseChange: (phase: string) => void;
     paused?: boolean;
-    onClearLineReached?: () => void;
   }, ref) {
     useImperativeHandle(ref, () => ({
       moveTo: vi.fn(),
@@ -25,15 +24,18 @@ vi.mock("./GameCanvas", () => ({
       drop: () => {
         canvasActions.drop();
         props.onPhaseChange("falling");
-      },
-      clearLockedPieces: canvasActions.clearLockedPieces
+      }
     }));
+
+    const missPiece = () => {
+      if (!props.onPieceMissed()) props.onGameOver();
+    };
+
     return (
       <div aria-label="Logo Stack playfield">
         <span data-testid="canvas-paused">{String(Boolean(props.paused))}</span>
         <button onClick={props.onLocked}>settle test piece</button>
-        <button onClick={props.onGameOver}>lose test piece</button>
-        {props.onClearLineReached && <button onClick={props.onClearLineReached}>reach clear line</button>}
+        <button onClick={missPiece}>lose test piece</button>
       </div>
     );
   })
@@ -41,59 +43,74 @@ vi.mock("./GameCanvas", () => ({
 
 import { LogoStackGame } from "./LogoStackGame";
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  vi.clearAllMocks();
+});
 
-test("shows game information and disables aiming controls after drop", async () => {
-  const user = userEvent.setup();
+test("shows only the playfield with score and two lives at its side", () => {
   render(<LogoStackGame />);
 
-  expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Best score")).toHaveTextContent("0");
-  expect(screen.getByText(/next object/i)).toBeVisible();
-  expect(screen.getByText(/move.*rotate.*drop/i)).toBeVisible();
-  expect(screen.queryByText(/^logo$|^blossom$/i)).not.toBeInTheDocument();
-
-  await user.click(screen.getByRole("button", { name: /^drop$/i }));
-  expect(screen.getByRole("button", { name: /^drop$/i })).toBeDisabled();
-  expect(screen.getByRole("button", { name: /^rotate$/i })).toBeDisabled();
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+  expect(screen.getByRole("complementary", { name: /game status/i })).toBeVisible();
+  expect(screen.queryByLabelText("Best score")).not.toBeInTheDocument();
+  expect(screen.queryByText(/next object/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^drop$|^rotate$|open menu/i })).not.toBeInTheDocument();
+  expect(screen.queryByText(/desktop:|phone:/i)).not.toBeInTheDocument();
 });
 
-test("locking awards 100 points and enables the next piece", async () => {
+test("each locked component awards exactly 100 points", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
-  await user.click(screen.getByRole("button", { name: /^drop$/i }));
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
-
   expect(screen.getByLabelText("Current score")).toHaveTextContent("100");
-  expect(screen.getByRole("button", { name: /^drop$/i })).toBeEnabled();
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+
+  await user.click(screen.getByRole("button", { name: /settle test piece/i }));
+  expect(screen.getByLabelText("Current score")).toHaveTextContent("200");
 });
 
-test("game over offers only required actions and retry clears current score", async () => {
+test("the first miss consumes one life and continues the same scored run", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+
+  expect(screen.getByLabelText("Current score")).toHaveTextContent("100");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("1");
+  expect(screen.queryByRole("dialog", { name: /game ended/i })).not.toBeInTheDocument();
+  expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
+});
+
+test("the second miss ends the run and retry restores score and lives", async () => {
+  const user = userEvent.setup();
+  render(<LogoStackGame />);
+
+  await user.click(screen.getByRole("button", { name: /settle test piece/i }));
+  await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+  await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("0");
   expect(screen.getByRole("dialog", { name: /game ended/i })).toBeVisible();
-  expect(screen.getByRole("button", { name: /view score/i })).toBeVisible();
-  expect(screen.queryByText(/run score/i)).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: /view score/i }));
   expect(screen.getByText(/run score: 100/i)).toBeVisible();
 
   await user.click(screen.getByRole("button", { name: /^retry$/i }));
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
-test("menu button and Escape pause and resume the game", async () => {
-  const user = userEvent.setup();
+test("Escape pauses and resumes the game without a header menu button", () => {
   render(<LogoStackGame />);
-  await user.click(screen.getByRole("button", { name: /open menu/i }));
+
+  fireEvent.keyDown(window, { key: "Escape" });
   expect(screen.getByRole("dialog", { name: /game menu/i })).toBeVisible();
   expect(screen.getByTestId("canvas-paused")).toHaveTextContent("true");
-  expect(screen.getByRole("button", { name: /^drop$/i })).toBeDisabled();
+
   fireEvent.keyDown(window, { key: "Escape" });
   expect(screen.queryByRole("dialog", { name: /game menu/i })).not.toBeInTheDocument();
   expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
@@ -102,48 +119,27 @@ test("menu button and Escape pause and resume the game", async () => {
 test("Retry in the pause menu resets the current run", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
+
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
-  await user.click(screen.getByRole("button", { name: /open menu/i }));
+  await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+  fireEvent.keyDown(window, { key: "Escape" });
   await user.click(screen.getByRole("button", { name: /^retry$/i }));
+
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.queryByRole("dialog", { name: /game menu/i })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
 });
 
-test("reads and preserves the local personal best", async () => {
+test("keeps the personal best internally without showing it in the game header", async () => {
   localStorage.setItem("logo-stack-best", "900");
+  const user = userEvent.setup();
   render(<LogoStackGame />);
-  expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Best score")).toHaveTextContent("900");
+
+  await user.click(screen.getByRole("button", { name: /settle test piece/i }));
+  expect(localStorage.getItem("logo-stack-best")).toBe("900");
+  expect(screen.queryByLabelText("Best score")).not.toBeInTheDocument();
 });
 
-test("clears the stack after the height line without resetting score", async () => {
-  vi.useFakeTimers();
-  canvasActions.clearLockedPieces.mockClear();
-  render(<LogoStackGame />);
-  fireEvent.click(screen.getByRole("button", { name: /settle test piece/i }));
-  fireEvent.click(screen.getByRole("button", { name: /reach clear line/i }));
-  expect(screen.getByLabelText("Current score")).toHaveTextContent("100");
-  expect(screen.getByTestId("canvas-paused")).toHaveTextContent("true");
-  expect(screen.getByRole("button", { name: /^drop$/i })).toBeDisabled();
-  await act(() => vi.advanceTimersByTimeAsync(650));
-  expect(canvasActions.clearLockedPieces).toHaveBeenCalledOnce();
-  expect(screen.getByLabelText("Current score")).toHaveTextContent("100");
-  expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
-  vi.useRealTimers();
-});
-
-test("P previews the flower clearing animation in development", () => {
-  render(<LogoStackGame />);
-  fireEvent.keyDown(window, { key: "p" });
-  expect(screen.getByTestId("canvas-paused")).toHaveTextContent("true");
-  expect(document.querySelector(".petal-burst")).toBeInTheDocument();
-  expect(document.querySelectorAll(".petal-burst i")).toHaveLength(14);
-});
-
-test("arrow keys move, Space rotates, and Enter drops", () => {
-  canvasActions.moveBy.mockClear();
-  canvasActions.rotate.mockClear();
-  canvasActions.drop.mockClear();
+test("arrow keys use minute movement while Space rotates and Enter drops", () => {
   render(<LogoStackGame />);
 
   fireEvent.keyDown(window, { key: "ArrowLeft" });
@@ -151,8 +147,8 @@ test("arrow keys move, Space rotates, and Enter drops", () => {
   fireEvent.keyDown(window, { key: " " });
   fireEvent.keyDown(window, { key: "Enter" });
 
-  expect(canvasActions.moveBy).toHaveBeenNthCalledWith(1, -24);
-  expect(canvasActions.moveBy).toHaveBeenNthCalledWith(2, 24);
+  expect(canvasActions.moveBy).toHaveBeenNthCalledWith(1, -8);
+  expect(canvasActions.moveBy).toHaveBeenNthCalledWith(2, 8);
   expect(canvasActions.rotate).toHaveBeenCalledOnce();
   expect(canvasActions.drop).toHaveBeenCalledOnce();
 });

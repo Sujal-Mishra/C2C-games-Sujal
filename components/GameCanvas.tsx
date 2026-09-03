@@ -20,24 +20,31 @@ import {
   type IEventTimestamped
 } from "matter-js";
 import { createPieceBody, PIECE_STYLES } from "@/game/pieces";
-import { dropPiece, INITIAL_GAME_STATE, lockPiece, updateSettlement } from "@/game/rules";
+import {
+  AIM_MOVE_STEP,
+  dropPiece,
+  getEndlessCameraTargetY,
+  hasPieceMissed,
+  INITIAL_GAME_STATE,
+  lockPiece,
+  updateSettlement
+} from "@/game/rules";
 import type { GamePhase, GameState, QuarterTurn, ShapeType } from "@/game/types";
 
 const WORLD_WIDTH = 900;
 const WORLD_HEIGHT = 650;
-const SPAWN_Y = 78;
+const SPAWN_SCREEN_Y = 78;
 const SPAWN_MIN_X = 70;
 const SPAWN_MAX_X = 830;
 const PLATFORM_Y = 555;
-const FAILURE_Y = 690;
-export const CLEAR_LINE_Y = 130;
+const FAILURE_SCREEN_Y = WORLD_HEIGHT + 40;
+const CAMERA_SCROLL_STEP = 4;
 
 export interface GameCanvasHandle {
   moveTo: (x: number) => void;
   moveBy: (delta: number) => void;
   rotate: () => void;
   drop: () => void;
-  clearLockedPieces: () => void;
 }
 
 interface GameCanvasProps {
@@ -46,11 +53,11 @@ interface GameCanvasProps {
   runId: number;
   pieceId?: number;
   onLocked: () => void;
+  onPieceMissed: () => boolean;
   onGameOver: () => void;
   onReady?: () => void;
   onPhaseChange?: (phase: GamePhase) => void;
   paused?: boolean;
-  onClearLineReached?: () => void;
 }
 
 interface SpriteSnapshot {
@@ -63,7 +70,7 @@ interface SpriteSnapshot {
 }
 
 export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
-  { currentShape, rotation, runId, pieceId = 0, onLocked, onGameOver, onReady, onPhaseChange, paused = false, onClearLineReached },
+  { currentShape, rotation, runId, pieceId = 0, onLocked, onPieceMissed, onGameOver, onReady, onPhaseChange, paused = false },
   ref
 ) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -74,14 +81,16 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   const spawnXRef = useRef(WORLD_WIDTH / 2);
   const failedRef = useRef(false);
   const pausedRef = useRef(paused);
-  const clearTriggeredRef = useRef(false);
+  const cameraYRef = useRef(0);
+  const cameraTargetYRef = useRef(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const callbacksRef = useRef({ onLocked, onGameOver, onReady, onPhaseChange, onClearLineReached });
+  const callbacksRef = useRef({ onLocked, onPieceMissed, onGameOver, onReady, onPhaseChange });
   const [sprites, setSprites] = useState<SpriteSnapshot[]>([]);
+  const [cameraY, setCameraY] = useState(0);
 
   useEffect(() => {
-    callbacksRef.current = { onLocked, onGameOver, onReady, onPhaseChange, onClearLineReached };
-  }, [onLocked, onGameOver, onReady, onPhaseChange, onClearLineReached]);
+    callbacksRef.current = { onLocked, onPieceMissed, onGameOver, onReady, onPhaseChange };
+  }, [onLocked, onPieceMissed, onGameOver, onReady, onPhaseChange]);
 
   useEffect(() => { pausedRef.current = paused; }, [paused]);
 
@@ -91,6 +100,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   }, []);
 
   const syncSprites = useCallback(() => {
+    setCameraY(cameraYRef.current);
     setSprites(
       piecesRef.current.map((body) => ({
         id: body.id,
@@ -108,7 +118,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     if (pausedRef.current || !body || phaseRef.current.phase !== "aiming") return;
     const nextX = Math.min(SPAWN_MAX_X, Math.max(SPAWN_MIN_X, x));
     spawnXRef.current = nextX;
-    Body.setPosition(body, { x: nextX, y: SPAWN_Y });
+    Body.setPosition(body, { x: nextX, y: cameraYRef.current + SPAWN_SCREEN_Y });
     syncSprites();
   }, [syncSprites]);
 
@@ -128,24 +138,12 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     Body.setVelocity(body, { x: 0, y: 3 });
   }, [setPhase]);
 
-  const clearLockedPieces = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    const active = activeRef.current;
-    const locked = piecesRef.current.filter((body) => body !== active);
-    locked.forEach((body) => World.remove(engine.world, body));
-    piecesRef.current = active ? [active] : [];
-    clearTriggeredRef.current = false;
-    syncSprites();
-  }, [syncSprites]);
-
   useImperativeHandle(ref, () => ({
     moveTo,
     moveBy: (delta) => moveTo(spawnXRef.current + delta),
     rotate,
-    drop,
-    clearLockedPieces
-  }), [clearLockedPieces, drop, moveTo, rotate]);
+    drop
+  }), [drop, moveTo, rotate]);
 
   useEffect(() => {
     const engine = Engine.create({ enableSleeping: true });
@@ -162,6 +160,9 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     piecesRef.current = [];
     failedRef.current = false;
     spawnXRef.current = WORLD_WIDTH / 2;
+    cameraYRef.current = 0;
+    cameraTargetYRef.current = 0;
+    setCameraY(0);
     setSprites([]);
     setPhase({ ...INITIAL_GAME_STATE });
 
@@ -169,10 +170,22 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
       const active = activeRef.current;
       if (!active || failedRef.current) return;
 
-      if (piecesRef.current.some((body) => body.position.y > FAILURE_Y)) {
-        failedRef.current = true;
-        setPhase({ ...phaseRef.current, phase: "gameOver", settleStartedAt: null });
-        callbacksRef.current.onGameOver();
+      if (
+        (phaseRef.current.phase === "falling" || phaseRef.current.phase === "settling") &&
+        hasPieceMissed(active.position.y, cameraYRef.current + FAILURE_SCREEN_Y)
+      ) {
+        World.remove(engine.world, active);
+        piecesRef.current = piecesRef.current.filter((body) => body !== active);
+        activeRef.current = null;
+        const canContinue = callbacksRef.current.onPieceMissed();
+        if (canContinue) {
+          setPhase({ ...phaseRef.current, phase: "locked", settleStartedAt: null });
+        } else {
+          failedRef.current = true;
+          setPhase({ ...phaseRef.current, phase: "gameOver", settleStartedAt: null });
+          callbacksRef.current.onGameOver();
+        }
+        syncSprites();
         return;
       }
 
@@ -190,20 +203,37 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         if (next.phase === "locked") {
           Body.setStatic(active, true);
           setPhase(lockPiece(next));
+          const stackTopY = Math.min(...piecesRef.current.map((body) => body.bounds.min.y));
+          cameraTargetYRef.current = getEndlessCameraTargetY(
+            cameraTargetYRef.current,
+            stackTopY,
+            WORLD_HEIGHT
+          );
           activeRef.current = null;
           syncSprites();
           callbacksRef.current.onLocked();
-          if (!clearTriggeredRef.current && piecesRef.current.some((body) => body.bounds.min.y <= CLEAR_LINE_Y)) {
-            clearTriggeredRef.current = true;
-            callbacksRef.current.onClearLineReached?.();
-          }
         }
       }
     };
 
     Events.on(engine, "afterUpdate", afterUpdate);
     const physicsTimer = window.setInterval(() => {
-      if (!pausedRef.current) Engine.update(engine, 1000 / 60);
+      if (!pausedRef.current) {
+        if (cameraYRef.current > cameraTargetYRef.current) {
+          cameraYRef.current = Math.max(
+            cameraTargetYRef.current,
+            cameraYRef.current - CAMERA_SCROLL_STEP
+          );
+          const active = activeRef.current;
+          if (active && phaseRef.current.phase === "aiming") {
+            Body.setPosition(active, {
+              x: spawnXRef.current,
+              y: cameraYRef.current + SPAWN_SCREEN_Y
+            });
+          }
+        }
+        Engine.update(engine, 1000 / 60);
+      }
       syncSprites();
     }, 1000 / 60);
     callbacksRef.current.onReady?.();
@@ -223,7 +253,12 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     const engine = engineRef.current;
     if (!engine || activeRef.current || failedRef.current) return;
 
-    const body = createPieceBody(currentShape, spawnXRef.current, SPAWN_Y, rotation);
+    const body = createPieceBody(
+      currentShape,
+      spawnXRef.current,
+      cameraYRef.current + SPAWN_SCREEN_Y,
+      rotation
+    );
     Body.setStatic(body, true);
     activeRef.current = body;
     piecesRef.current.push(body);
@@ -257,14 +292,15 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         if (event.pointerType !== "touch" || !start || pausedRef.current) return;
         const deltaX = event.clientX - start.x;
         const deltaY = event.clientY - start.y;
-        if (Math.abs(deltaX) >= 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
-          moveTo(spawnXRef.current + Math.sign(deltaX) * 72);
+        if (deltaY >= 40 && Math.abs(deltaY) > Math.abs(deltaX)) {
+          drop();
+        } else if (Math.abs(deltaX) >= 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          moveTo(spawnXRef.current + Math.sign(deltaX) * AIM_MOVE_STEP);
         } else if (Math.hypot(deltaX, deltaY) < 18) {
           rotate();
         }
       }}
     >
-      <div className="clear-line" aria-hidden="true" />
       <div className="pieces-layer">
         {sprites.map((sprite) => (
           <img
@@ -274,14 +310,19 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
             className="physics-piece"
             style={{
               left: `${(sprite.x / WORLD_WIDTH) * 100}%`,
-              top: `${(sprite.y / WORLD_HEIGHT) * 100}%`,
+              top: `${((sprite.y - cameraY) / WORLD_HEIGHT) * 100}%`,
               width: `${((PIECE_STYLES[sprite.type].size * 2.25) / WORLD_WIDTH) * 100}%`,
               transform: `translate(-50%, -50%) rotate(${sprite.angle}rad)`
             }}
           />
         ))}
       </div>
-      <div className="platform-visual" data-testid="platform" aria-hidden="true" />
+      <div
+        className="platform-visual"
+        data-testid="platform"
+        aria-hidden="true"
+        style={{ top: `${((PLATFORM_Y - cameraY) / WORLD_HEIGHT) * 100}%` }}
+      />
     </div>
   );
 });

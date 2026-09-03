@@ -5,20 +5,28 @@ import { GameCanvas, type GameCanvasHandle } from "./GameCanvas";
 import { GameHud } from "./GameHud";
 import { GameMenu } from "./GameMenu";
 import { GameOverOverlay } from "./GameOverOverlay";
-import { pickShape, POINTS_PER_PIECE, rotateQuarterTurn } from "@/game/rules";
+import {
+  AIM_MOVE_STEP,
+  INITIAL_LIVES,
+  loseLife,
+  pickShape,
+  POINTS_PER_PIECE,
+  rotateQuarterTurn
+} from "@/game/rules";
 import { createLocalScoreStore, updateBestScore } from "@/game/scoreStore";
 import type { GamePhase, QuarterTurn, ShapeType } from "@/game/types";
 
 export function LogoStackGame() {
   const canvasRef = useRef<GameCanvasHandle>(null);
   const scoreStoreRef = useRef(createLocalScoreStore());
+  const livesRef = useRef(INITIAL_LIVES);
   const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(INITIAL_LIVES);
   const [bestScore, setBestScore] = useState(0);
   const [phase, setPhase] = useState<GamePhase>("aiming");
   const [menuOpen, setMenuOpen] = useState(false);
   const [ended, setEnded] = useState(false);
   const [showScore, setShowScore] = useState(false);
-  const [clearing, setClearing] = useState(false);
   const [rotation, setRotation] = useState<QuarterTurn>(0);
   const [currentShape, setCurrentShape] = useState<ShapeType>("logo");
   const [nextShape, setNextShape] = useState<ShapeType>("blossom");
@@ -37,18 +45,30 @@ export function LogoStackGame() {
     setPhase("falling");
   }, [phase]);
 
-  const handleLocked = useCallback(() => {
-    setScore((value) => {
-      const nextScore = value + POINTS_PER_PIECE;
-      setBestScore((best) => updateBestScore(nextScore, best, scoreStoreRef.current));
-      return nextScore;
-    });
+  const startNextPiece = useCallback(() => {
     setCurrentShape(nextShape);
     setNextShape(pickShape());
     setRotation(0);
     setPieceId((value) => value + 1);
     setPhase("aiming");
   }, [nextShape]);
+
+  const handleLocked = useCallback(() => {
+    setScore((value) => {
+      const nextScore = value + POINTS_PER_PIECE;
+      setBestScore((best) => updateBestScore(nextScore, best, scoreStoreRef.current));
+      return nextScore;
+    });
+    startNextPiece();
+  }, [startNextPiece]);
+
+  const handlePieceMissed = useCallback(() => {
+    const remainingLives = loseLife(livesRef.current);
+    livesRef.current = remainingLives;
+    setLives(remainingLives);
+    if (remainingLives > 0) startNextPiece();
+    return remainingLives > 0;
+  }, [startNextPiece]);
 
   const endGame = useCallback(() => {
     setMenuOpen(false);
@@ -61,6 +81,8 @@ export function LogoStackGame() {
 
   const restart = useCallback(() => {
     setScore(0);
+    livesRef.current = INITIAL_LIVES;
+    setLives(INITIAL_LIVES);
     setPhase("aiming");
     setRotation(0);
     setCurrentShape(pickShape());
@@ -69,25 +91,8 @@ export function LogoStackGame() {
     setMenuOpen(false);
     setEnded(false);
     setShowScore(false);
-    setClearing(false);
     setRunId((value) => value + 1);
   }, []);
-
-  const handleClearLineReached = useCallback(() => {
-    setClearing(true);
-    setPhase("clearing");
-  }, []);
-
-  useEffect(() => {
-    if (!clearing) return;
-    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => {
-      canvasRef.current?.clearLockedPieces();
-      setClearing(false);
-      setPhase("aiming");
-    }, reducedMotion ? 80 : 650);
-    return () => window.clearTimeout(timer);
-  }, [clearing]);
 
   useEffect(() => {
     setBestScore(scoreStoreRef.current.readBest());
@@ -101,16 +106,11 @@ export function LogoStackGame() {
         setMenuOpen((open) => !open);
         return;
       }
-      if (key === "p" && process.env.NODE_ENV !== "production" && !menuOpen && !ended && !clearing) {
-        event.preventDefault();
-        handleClearLineReached();
-        return;
-      }
-      if (menuOpen || ended || clearing) return;
+      if (menuOpen || ended) return;
       if (phase !== "aiming") return;
       if (key === "arrowleft" || key === "arrowright" || key === "a" || key === "d") {
         event.preventDefault();
-        canvasRef.current?.moveBy(key === "arrowleft" || key === "a" ? -24 : 24);
+        canvasRef.current?.moveBy(key === "arrowleft" || key === "a" ? -AIM_MOVE_STEP : AIM_MOVE_STEP);
       } else if (event.key === " ") {
         event.preventDefault();
         rotate();
@@ -121,24 +121,12 @@ export function LogoStackGame() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [clearing, drop, ended, handleClearLineReached, menuOpen, phase, rotate]);
+  }, [drop, ended, menuOpen, phase, rotate]);
 
   return (
     <main className="game-page">
       <section className="game-layout" id="game">
-        <div className={`game-board-wrap${clearing ? " is-clearing" : ""}`}>
-          <div className="hud-row">
-            <GameHud
-              score={score}
-              bestScore={bestScore}
-              nextShape={nextShape}
-              phase={menuOpen || ended || clearing ? "gameOver" : phase}
-              onRotate={rotate}
-              onDrop={drop}
-              onMenu={() => setMenuOpen(true)}
-            />
-          </div>
-
+        <div className="game-board-wrap">
           <div className="canvas-frame">
             <GameCanvas
               ref={canvasRef}
@@ -146,17 +134,15 @@ export function LogoStackGame() {
               rotation={rotation}
               runId={runId}
               pieceId={pieceId}
-              paused={menuOpen || ended || clearing}
-              onClearLineReached={handleClearLineReached}
+              paused={menuOpen || ended}
               onLocked={handleLocked}
+              onPieceMissed={handlePieceMissed}
               onGameOver={handleGameOver}
               onPhaseChange={setPhase}
             />
-            {clearing && <div className="petal-burst" aria-hidden="true">{Array.from({ length: 14 }, (_, index) => <i key={index} />)}</div>}
           </div>
+          <GameHud score={score} lives={lives} />
         </div>
-
-        <p className="instructions">Desktop: A / D or ← / → move · Space rotates · Enter drops · Phone: swipe to move · tap to rotate · press Drop</p>
       </section>
 
       {menuOpen && <GameMenu onClose={() => setMenuOpen(false)} onRetry={restart} />}
