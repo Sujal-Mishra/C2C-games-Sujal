@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" width="26" height="26" shape-rendering="crispEdges">
+  <title>Pac-Man pellet</title>
+  <!-- Arcade dot: 2x2 px centred in an 8x8 tile, traced from the sheet.
+       The viewBox is the whole tile, so sizing this to one maze cell
+       centres the dot automatically. -->
+  <rect x="3" y="3" width="2" height="2" fill="#ffb7ae"/>
+</svg>

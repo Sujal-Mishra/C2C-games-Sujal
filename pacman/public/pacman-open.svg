@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 13 13" width="39" height="39" shape-rendering="crispEdges">
+  <title>Pac-Man, mouth open 90 degrees</title>
+  <!-- Arcade 13x13 sprite: apex 3px left of centre, lips at +/-45 deg. Faces right at rotate(0). -->
+  <g fill="#ffff00">
+  <rect x="4" y="0" width="5" height="1"/>
+  <rect x="2" y="1" width="7" height="1"/>
+  <rect x="1" y="2" width="7" height="1"/>
+  <rect x="1" y="3" width="6" height="1"/>
+  <rect x="0" y="4" width="6" height="1"/>
+  <rect x="0" y="5" width="5" height="1"/>
+  <rect x="0" y="6" width="4" height="1"/>
+  <rect x="0" y="7" width="5" height="1"/>
+  <rect x="0" y="8" width="6" height="1"/>
+  <rect x="1" y="9" width="6" height="1"/>
+  <rect x="1" y="10" width="7" height="1"/>
+  <rect x="2" y="11" width="7" height="1"/>
+  <rect x="4" y="12" width="5" height="1"/>
+  </g>
+</svg>
