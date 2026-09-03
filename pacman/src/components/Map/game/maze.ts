@@ -2,6 +2,8 @@ import level from "../level.json" with { type: "json" };
 
 /** Cell codes used by the level editor export in `level.json`. */
 export const CELL = {
+  /** Off-board filler the editor writes around the maze: never walkable, never drawn. */
+  VOID: 0,
   PATH: 1,
   WALL: 2,
   GHOST_HOUSE: 3,
@@ -55,9 +57,12 @@ export const PACMAN_SPAWN: Tile = tilesOf(CELL.PACMAN_SPAWN)[0];
 export const house = (t: Tile) => MAZE[t.row][t.col] === CELL.GHOST_HOUSE;
 
 /**
- * The tile reached by moving one step from (row, col), or null if a wall (or,
- * unless `houseOk`, the ghost house) blocks it. Stepping off the grid from a
- * teleport endpoint emerges at its partner.
+ * The tile reached by moving one step from (row, col), or null if the grid edge,
+ * a wall, off-board filler or (unless `houseOk`) the ghost house blocks it.
+ *
+ * Stepping onto a teleport mouth emerges at its partner, so a pair works wherever
+ * it sits: the endpoints need not be on the border, and need not face each other.
+ * You never come to rest on a mouth, so arriving at one can't bounce you back.
  */
 export function step(
   row: number,
@@ -68,14 +73,15 @@ export function step(
 ): Tile | null {
   let r = row + dRow;
   let c = col + dCol;
-  if (r < 0 || r >= MAZE_ROWS || c < 0 || c >= MAZE_COLS) {
-    const partner = TELEPORT_PARTNER.get(`${row},${col}`);
-    if (!partner) return null;
+  if (r < 0 || r >= MAZE_ROWS || c < 0 || c >= MAZE_COLS) return null;
+  const partner = MAZE[r][c] === CELL.TELEPORT && TELEPORT_PARTNER.get(`${r},${c}`);
+  if (partner) {
     r = partner.y;
     c = partner.x;
   }
   const t = { row: r, col: c };
-  return MAZE[r][c] === CELL.WALL || (!houseOk && house(t)) ? null : t;
+  const blocked = MAZE[r][c] === CELL.WALL || MAZE[r][c] === CELL.VOID;
+  return blocked || (!houseOk && house(t)) ? null : t;
 }
 
 /**

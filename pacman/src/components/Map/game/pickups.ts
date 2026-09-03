@@ -8,8 +8,12 @@ export const DOTS = {
   power: tilesOf(CELL.POWER_PELLET),
 };
 
-/** Fruit slot below the ghost house: a cherry (the only fruit, there's one level), appearing when the 70th and 170th dots are eaten. */
-export const FRUIT_SPAWN: Tile = { row: 17, col: 13 };
+/**
+ * Fruit slot below the ghost house, beside the ghost-spawn marker: a cherry (the
+ * only fruit, there's one level), appearing when the 70th and 170th dots are eaten.
+ * Must be a PATH tile, so the cherry sits on a dot and can be walked onto.
+ */
+export const FRUIT_SPAWN: Tile = { row: 18, col: 13 };
 export const FRUIT_AT = [70, 170];
 
 /** The fruit leaves the board after 9s if it isn't eaten. */

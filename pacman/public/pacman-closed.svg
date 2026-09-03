@@ -1,19 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 13 13" width="39" height="39" shape-rendering="crispEdges">
-  <title>Pac-Man, mouth closed</title>
-  <!-- Arcade 13x13 sprite, traced pixel-for-pixel from the sheet. -->
-  <g fill="#ffff00">
-  <rect x="4" y="0" width="5" height="1"/>
-  <rect x="2" y="1" width="9" height="1"/>
-  <rect x="1" y="2" width="11" height="1"/>
-  <rect x="1" y="3" width="11" height="1"/>
-  <rect x="0" y="4" width="13" height="1"/>
-  <rect x="0" y="5" width="13" height="1"/>
-  <rect x="0" y="6" width="13" height="1"/>
-  <rect x="0" y="7" width="13" height="1"/>
-  <rect x="0" y="8" width="13" height="1"/>
-  <rect x="1" y="9" width="11" height="1"/>
-  <rect x="1" y="10" width="11" height="1"/>
-  <rect x="2" y="11" width="9" height="1"/>
-  <rect x="4" y="12" width="5" height="1"/>
-  </g>
+<svg width="33" height="37" viewBox="0 0 33 37" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_68_3043)">
+<path d="M16.1348 0.00939941L32.2697 9.0762V27.2323L16.1348 36.2991L0 27.2323V9.0762L16.1348 0.00939941Z" fill="#D884A2"/>
+<path d="M16.1348 18.1542H32.2697V9.07621L21.1202 2.81091L16.1348 18.1542Z" fill="#F1CEDF"/>
+<path d="M16.1348 18.1542L21.1202 2.8109L16.1348 0.00939941L2.0524 7.9229L16.1348 18.1542Z" fill="#D884A2"/>
+<path d="M16.1348 18.1542L2.0524 7.92285L0 9.07615V27.2323L2.0524 28.3855L16.1348 18.1542Z" fill="#B44F76"/>
+<path d="M16.1348 18.1542L2.0524 28.3855L16.1348 36.2991L21.1202 33.4975L16.1348 18.1542Z" fill="#E3A9BF"/>
+<path d="M16.1348 18.1542L21.1202 33.4975L32.2697 27.2323V18.1542H16.1348Z" fill="#D884A2"/>
+<rect x="26" y="9" width="2" height="2" fill="black"/>
+</g>
+<defs>
+<clipPath id="clip0_68_3043">
+<rect width="33" height="37" fill="white"/>
+</clipPath>
+</defs>
 </svg>

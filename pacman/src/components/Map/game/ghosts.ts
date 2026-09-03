@@ -3,9 +3,9 @@ import { SEC } from "./timing.ts";
 import type { Game } from "./state.ts";
 
 /**
- * Ghost house: the two 3x2 pockets inside the "2" — rows 11-12 (open to the
- * left via col 11) and rows 14-15 (open to the right via col 15). GHOST_SPAWN
- * is the single marker tile at the top of the board (row 7, col 13).
+ * Ghost house: the two 4x2 pockets either side of centre — rows 8-9 (cols 10-13,
+ * open to the left via col 9) and rows 11-12 (cols 11-14, open to the right via
+ * col 15). GHOST_SPAWN is the single marker tile below them (row 17, col 12).
  */
 export const GHOST_HOUSE: Tile[] = tilesOf(CELL.GHOST_HOUSE);
 export const GHOST_SPAWN: Tile = tilesOf(CELL.GHOST_SPAWN)[0];
@@ -15,10 +15,10 @@ export const GHOST_SPAWN: Tile = tilesOf(CELL.GHOST_SPAWN)[0];
  * head for to get out, `corner`: scatter target (Blinky TR, Pinky TL, Inky BR, Clyde BL).
  */
 export const GHOSTS = [
-  { name: "blinky", tile: { row: 11, col: 12 }, door: { row: 11, col: 11 }, corner: { row: 0, col: MAZE_COLS - 1 } },
-  { name: "pinky", tile: { row: 12, col: 14 }, door: { row: 12, col: 11 }, corner: { row: 0, col: 0 } },
-  { name: "inky", tile: { row: 14, col: 12 }, door: { row: 14, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
-  { name: "clyde", tile: { row: 15, col: 14 }, door: { row: 15, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
+  { name: "blinky", tile: { row: 8, col: 10 }, door: { row: 8, col: 9 }, corner: { row: 0, col: MAZE_COLS - 1 } },
+  { name: "pinky", tile: { row: 9, col: 12 }, door: { row: 9, col: 9 }, corner: { row: 0, col: 0 } },
+  { name: "inky", tile: { row: 11, col: 11 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
+  { name: "clyde", tile: { row: 12, col: 14 }, door: { row: 12, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
 ];
 
 /**

@@ -2,7 +2,7 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0a0a0a;
 }
 
 @theme inline {
@@ -11,13 +11,6 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-arcade: var(--font-arcade);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
@@ -40,14 +33,14 @@ body {
   background: no-repeat center / contain;
 }
 
-/* Arcade dot is 2px of an 8px tile; half-size makes it one pixel wide. */
+/* Arcade dot is 2px of an 8px tile; this sits a quarter under that so it reads as a small speck. */
 .pellet {
-  background-size: 50%;
+  background-size: 33.75%;
 }
 
-/* The arcade energizer fills its tile; shown at 60% so it doesn't crowd the walls. */
+/* The arcade energizer fills its tile; shown at 66% so it doesn't crowd the walls. */
 .power {
-  background-size: 60%;
+  background-size: 66%;
 }
 
 .cherry {
