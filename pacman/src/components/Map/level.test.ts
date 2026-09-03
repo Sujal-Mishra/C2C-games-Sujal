@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAZE, MAZE_COLS, advance, step } from "./level.ts";
+import { FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, advance, fruitOut, step, tick } from "./level.ts";
 
 test("walls block, open tiles pass", () => {
   assert.equal(step(1, 1, -1, 0), null); // into the top border
@@ -26,4 +26,25 @@ test("advance turns when it can, else keeps going, else stops", () => {
   assert.deepEqual(advance({ row: 4, col: 1 }, up, right), { pos: { row: 3, col: 1 }, dir: up });
   // (1,12) → right is a wall and so is up: stay put, still facing right.
   assert.deepEqual(advance({ row: 1, col: 12 }, up, right), { pos: { row: 1, col: 12 }, dir: right });
+});
+
+test("tick eats the dot it lands on; the cherry shows at each FRUIT_AT trigger and is taken on contact", () => {
+  const dots = (n: number) => new Set(Array.from({ length: n }, (_, i) => `dot${i}`));
+  const grab = (g: typeof NEW_GAME) =>
+    tick({ ...g, pos: { row: FRUIT_SPAWN.row, col: FRUIT_SPAWN.col - 1 } }, [0, 1]);
+
+  let g = tick({ ...NEW_GAME, pos: { row: 1, col: 1 } }, [0, 1]);
+  assert.deepEqual([...g.eaten], ["1,2"]);
+  assert.equal(fruitOut(g), false);
+
+  g = grab({ ...g, eaten: dots(FRUIT_AT[0]) });
+  assert.deepEqual(g.pos, FRUIT_SPAWN);
+  assert.equal(g.fruitTaken, 1);
+  assert.equal(fruitOut(g), false, "second cherry waits for the next trigger");
+
+  g = { ...g, eaten: dots(FRUIT_AT[1]) };
+  assert.equal(fruitOut(g), true);
+  g = grab(g);
+  assert.equal(g.fruitTaken, 2);
+  assert.equal(fruitOut(g), false, "no third cherry");
 });

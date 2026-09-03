@@ -3,13 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CELL,
+  DOTS,
+  FRUIT_SPAWN,
   MAZE,
   MAZE_COLS,
   MAZE_ROWS,
-  PACMAN_SPAWN,
-  advance,
+  NEW_GAME,
+  fruitOut,
   isWall,
+  key,
+  tick,
   type Dir,
+  type Tile,
 } from "./level";
 
 const STOP: Dir = [0, 0];
@@ -19,11 +24,11 @@ const KEYS: Record<string, Dir> = {
   arrowleft: [0, -1], a: [0, -1],
   arrowright: [0, 1], d: [0, 1],
 };
-const TICK_MS = 150; // ms per tile: bigger = slower
+const TICK_MS = 200; // ms per tile: bigger = slower
 
-/** Pac-Man's tile and heading, driven by the arrow keys / WASD on a fixed tick. */
-function usePacman() {
-  const [pac, setPac] = useState({ pos: PACMAN_SPAWN, dir: STOP });
+/** Game state, advanced on a fixed tick; the arrow keys / WASD set where Pac-Man wants to go. */
+function useGame() {
+  const [game, setGame] = useState(NEW_GAME);
   const want = useRef(STOP);
 
   useEffect(() => {
@@ -34,77 +39,114 @@ function usePacman() {
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
-    const tick = setInterval(
-      () => setPac((p) => advance(p.pos, want.current, p.dir)),
-      TICK_MS,
-    );
+    const timer = setInterval(() => setGame((g) => tick(g, want.current)), TICK_MS);
     return () => {
       window.removeEventListener("keydown", onKey);
-      clearInterval(tick);
+      clearInterval(timer);
     };
   }, []);
 
-  return pac;
+  return game;
 }
 
+/** Inline position for a `.sprite` sitting on `t`. */
+const at = (t: Tile) => ({
+  top: `calc(${t.row} * var(--maze-cell))`,
+  left: `calc(${t.col} * var(--maze-cell))`,
+});
+
+const sprite = (t: Tile, src: string, className = "sprite") => (
+  <div key={key(t)} className={className} style={{ ...at(t), backgroundImage: `url(${src})` }} />
+);
+
+/** Arcade tile size. The board is drawn at this resolution and upscaled with `image-rendering: pixelated`. */
+const PX = 8;
+const WALL_COLOR = "#2b7fff";
+
 /**
- * Walls are one cell thick, so drawing a border only on the sides that face an
+ * Walls are one cell thick, so drawing a 1px line only on the sides that face an
  * open cell produces the twin-line hollow walls of the arcade board. Corners are
- * rounded wherever two neighbouring sides are both open.
+ * quarter-circles (radius = half a cell) wherever two neighbouring sides are both
+ * open — at 8px they rasterise into the boxy curves of the original.
  */
-function wallClassName(row: number, col: number): string {
+function drawWall(ctx: CanvasRenderingContext2D, row: number, col: number) {
   const up = !isWall(row - 1, col);
   const down = !isWall(row + 1, col);
   const left = !isWall(row, col - 1);
   const right = !isWall(row, col + 1);
+  const tl = up && left, tr = up && right, bl = down && left, br = down && right;
 
-  const classes = ["border-[#2b7fff]"];
-  if (up) classes.push("border-t-2");
-  if (down) classes.push("border-b-2");
-  if (left) classes.push("border-l-2");
-  if (right) classes.push("border-r-2");
+  const x = col * PX, y = row * PX, r = PX / 2, cx = x + r, cy = y + r;
+  // Inset by half a pixel so 1px lines land on whole pixels.
+  const lo = 0.5, hi = PX - 0.5;
 
-  if (up && left) classes.push("rounded-tl-[var(--maze-radius)]");
-  if (up && right) classes.push("rounded-tr-[var(--maze-radius)]");
-  if (down && left) classes.push("rounded-bl-[var(--maze-radius)]");
-  if (down && right) classes.push("rounded-br-[var(--maze-radius)]");
+  ctx.beginPath();
+  if (up) { ctx.moveTo(x + (tl ? r : 0), y + lo); ctx.lineTo(x + PX - (tr ? r : 0), y + lo); }
+  if (down) { ctx.moveTo(x + (bl ? r : 0), y + hi); ctx.lineTo(x + PX - (br ? r : 0), y + hi); }
+  if (left) { ctx.moveTo(x + lo, y + (tl ? r : 0)); ctx.lineTo(x + lo, y + PX - (bl ? r : 0)); }
+  if (right) { ctx.moveTo(x + hi, y + (tr ? r : 0)); ctx.lineTo(x + hi, y + PX - (br ? r : 0)); }
+  ctx.stroke();
 
-  return classes.join(" ");
+  const arc = (from: number, to: number) => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r - 0.5, from * Math.PI, to * Math.PI);
+    ctx.stroke();
+  };
+  if (tl) arc(1, 1.5);
+  if (tr) arc(1.5, 2);
+  if (br) arc(0, 0.5);
+  if (bl) arc(0.5, 1);
+}
+
+function drawMaze(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext("2d")!;
+  ctx.strokeStyle = WALL_COLOR;
+  ctx.lineWidth = 1;
+  MAZE.forEach((line, row) =>
+    line.forEach((cell, col) => cell === CELL.WALL && drawWall(ctx, row, col)),
+  );
+
+  // Canvas anti-aliases the arcs; snap every pixel to on/off so the curves are
+  // real pixel steps rather than blurry blobs once upscaled.
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 127 ? 255 : 0;
+  ctx.putImageData(img, 0, 0);
 }
 
 export default function Map() {
-  const { pos, dir } = usePacman();
+  const game = useGame();
+  const { pos, dir } = game;
+  const left = (t: Tile) => !game.eaten.has(key(t));
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useEffect(() => drawMaze(canvas.current!), []);
+
   return (
     <div
-      className="relative grid bg-black"
-      style={
-        {
-          "--maze-cell": "clamp(6px, min(3vw, 3vh), 26px)",
-          "--maze-radius": "calc(var(--maze-cell) / 2)",
-          gridTemplateColumns: `repeat(${MAZE_COLS}, var(--maze-cell))`,
-          gridTemplateRows: `repeat(${MAZE_ROWS}, var(--maze-cell))`,
-        } as React.CSSProperties
-      }
-      role="img"
-      aria-label="Pac-Man maze"
+      className="relative bg-black"
+      style={{ "--maze-cell": "clamp(6px, min(3vw, 3vh), 26px)" } as React.CSSProperties}
     >
-      {MAZE.map((line, row) =>
-        line.map((cell, col) => (
-          <div
-            key={`${row}-${col}`}
-            className={
-              cell === CELL.WALL ? wallClassName(row, col) : undefined
-            }
-          />
-        )),
-      )}
+      <canvas
+        ref={canvas}
+        width={MAZE_COLS * PX}
+        height={MAZE_ROWS * PX}
+        role="img"
+        aria-label="Pac-Man maze"
+        className="block [image-rendering:pixelated]"
+        style={{
+          width: `calc(${MAZE_COLS} * var(--maze-cell))`,
+          height: `calc(${MAZE_ROWS} * var(--maze-cell))`,
+        }}
+      />
+      {DOTS.pellets.filter(left).map((t) => sprite(t, "/pellet.svg", "sprite pellet"))}
+      {DOTS.power.filter(left).map((t) => sprite(t, "/power-pellet.svg", "sprite power"))}
+      {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}
       <div
         role="img"
         aria-label="Pac-Man"
-        className="pacman"
+        className="sprite pacman"
         style={{
-          top: `calc(${pos.row} * var(--maze-cell))`,
-          left: `calc(${pos.col} * var(--maze-cell))`,
+          ...at(pos),
           // Sprite faces right at 0deg; atan2 turns [dRow, dCol] into that heading.
           rotate: `${(Math.atan2(dir[0], dir[1]) * 180) / Math.PI}deg`,
         }}

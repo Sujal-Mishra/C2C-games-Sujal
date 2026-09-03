@@ -31,10 +31,28 @@ body {
   50% { background-image: url("/pacman-closed.svg"); }
 }
 
-.pacman {
+/* One maze cell, absolutely placed over the board; the image comes from inline style or an animation. */
+.sprite {
   position: absolute;
   width: var(--maze-cell);
   height: var(--maze-cell);
   background: no-repeat center / contain;
+}
+
+/* Arcade dot is 2px of an 8px tile; half-size makes it one pixel wide. */
+.pellet {
+  background-size: 50%;
+}
+
+/* The arcade energizer fills its tile; shown at 60% so it doesn't crowd the walls. */
+.power {
+  background-size: 60%;
+}
+
+.cherry {
+  background-size: 80%;
+}
+
+.pacman {
   animation: chomp 1s steps(1) infinite;
 }

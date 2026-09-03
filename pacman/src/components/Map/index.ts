@@ -9,6 +9,16 @@ export {
   isWall,
   step,
   advance,
+  tick,
+  tilesOf,
+  key,
+  fruitOut,
+  DOTS,
+  FRUIT_AT,
+  FRUIT_SPAWN,
+  GHOST_HOUSE,
+  GHOST_SPAWN,
+  NEW_GAME,
   PACMAN_SPAWN,
 } from "./level";
-export type { CellCode, Dir, Tile } from "./level";
+export type { CellCode, Dir, Game, Tile } from "./level";
