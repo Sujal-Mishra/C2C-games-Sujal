@@ -9,8 +9,9 @@
  * DOM. That's this file, and it's a client component (`"use client"`) because
  * all of that — `window`, `setInterval`, `Audio`, `<canvas>` — is browser-only.
  * How: three hooks and two render helpers.
- *   - {@link useGame} owns the `setInterval` that calls `tick` every
- *     {@link TICK_MS} and the `keydown` listener that sets the wanted direction.
+ *   - {@link useGame} owns the animation-frame loop that calls `tick` once per
+ *     {@link TICK_MS} of real time and the `keydown` listener that sets the
+ *     wanted direction.
  *   - {@link useSounds} diffs successive states and starts/stops audio off the
  *     changes.
  *   - `drawMaze`/`drawWall` render the walls once to a `<canvas>`.
@@ -57,6 +58,29 @@ import {
  * What: a frozen-by-convention {@link MovementDelta}.
  */
 const STOP: MovementDelta = [0, 0];
+
+/**
+ * Sprite timing, in ticks (= frames at 60 Hz).
+ *
+ * What: `GHOST_FRAME` = ticks per ghost leg-animation frame (8, as the arcade);
+ * `FLASH` = ticks per colour while a frightened ghost flashes white (12 gives
+ * the arcade's ~5 flashes in the 2-second warning); `CHOMP_HOLD` = ticks the
+ * chomp loop keeps playing after a dot (a dot lands every ~9 ticks while
+ * eating, so 12 bridges the gap without trailing on).
+ * Used by: the ghost render loop and {@link useSounds}.
+ */
+const GHOST_FRAME = 8;
+const FLASH = 12;
+const CHOMP_HOLD = 12;
+
+/**
+ * Most real time (ms) the tick loop will make up in one animation frame.
+ *
+ * Why: a background tab gets no frames; on return the loop would otherwise run
+ * seconds of ticks at once and Pac-Man would die off-screen. Capping at a few
+ * ticks' worth means a long gap just pauses the game instead.
+ */
+const MAX_CATCH_UP_MS = 4 * TICK_MS;
 
 /**
  * Keyboard-key -> direction map, arrows and WASD both.
@@ -149,15 +173,19 @@ const stopAll = () => {
  * begins after the opening jingle. In a mount-once `useEffect`: a `keydown`
  * handler maps the key via {@link KEYS}, and on the *first* key (`want.current
  * === STOP`) starts `opening_song.mp3`, flipping `go` true when it ends (or
- * immediately if audio is blocked); a `setInterval` every {@link TICK_MS} calls
- * `setGame(g => tick(g, want.current))` but only once `go` is true. Cleanup
- * removes both.
+ * immediately if audio is blocked); a `requestAnimationFrame` loop banks the
+ * real time elapsed since the last frame (only once `go` is true, capped at
+ * {@link MAX_CATCH_UP_MS}) and runs one `tick(g, want.current)` per
+ * {@link TICK_MS} owed, in a single `setGame`. Cleanup removes both.
  * What: `() => Game`.
  * Used by: the {@link Map} component.
  * Design: refs (not state) for `want`/`go` because changing them must *not*
- * re-render — only the tick's `setGame` should. The interval reads
- * `want.current` live, so the newest direction always wins without restarting
- * the timer. The empty dep array means one interval for the component's life.
+ * re-render — only the tick's `setGame` should. The loop reads `want.current`
+ * live, so the newest direction always wins. A fixed-step accumulator rather
+ * than `setInterval` because browsers round timer delays to whole milliseconds
+ * (16.67 -> 16, i.e. 4% fast) and throttle them in hidden tabs; frames track
+ * the display clock exactly and simply stop while the tab is hidden. The empty
+ * dep array means one loop for the component's life.
  */
 function useGame() {
   const [game, setGame] = useState(NEW_GAME);
@@ -177,10 +205,21 @@ function useGame() {
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
-    const timer = setInterval(() => go.current && setGame((g) => tick(g, want.current)), TICK_MS);
+    // Fixed-step loop: bank real elapsed time and run one tick per TICK_MS of it. Browsers truncate
+    // timers to whole ms (a 16.67ms interval fires every 16ms), so an interval would run 4% fast.
+    let raf = 0, last = performance.now(), owed = 0;
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      if (go.current) owed = Math.min(owed + now - last, MAX_CATCH_UP_MS); // a hidden tab shouldn't fast-forward on return
+      last = now;
+      const n = Math.floor(owed / TICK_MS);
+      owed -= n * TICK_MS;
+      if (n) setGame((g) => { for (let i = 0; i < n; i++) g = tick(g, want.current); return g; });
+    };
+    raf = requestAnimationFrame(frame);
     return () => {
       window.removeEventListener("keydown", onKey);
-      clearInterval(timer);
+      cancelAnimationFrame(raf);
     };
   }, []);
 
@@ -199,9 +238,10 @@ function useGame() {
  * `bite` -> `eatghost`; `fright` risen -> `eatpill`; fruit gone while on its
  * tile -> `eatfruit`. Two continuous sounds are handled by the local `loop`
  * helper, which lazily creates a looping element per name and pauses/resumes it:
- * the chomp loop tracks "did `eaten` grow this tick?", the siren runs whenever
- * the game is live and not mid-bite. A second, unmounting effect pauses every
- * loop on teardown.
+ * the chomp loop runs while a dot was eaten within the last {@link CHOMP_HOLD}
+ * ticks (ticks are frames, so "this tick" would flicker between tiles); the
+ * siren runs whenever the game is live and not mid-bite. A second, unmounting
+ * effect pauses every loop on teardown.
  * What: `(game: Game) => void`.
  * Used by: the {@link Map} component, once per render.
  * Design: event sounds keyed off deltas (not off React events) so they stay in
@@ -211,6 +251,7 @@ function useGame() {
  */
 function useSounds(game: Game) {
   const prev = useRef(game);
+  const ate = useRef(-Infinity); // tick of the last dot eaten
   const loops = useRef<Record<string, HTMLAudioElement>>({});
   useEffect(() => {
     const p = prev.current;
@@ -226,7 +267,9 @@ function useSounds(game: Game) {
     if (game.bite && !p.bite) play("eatghost.mp3");
     if (game.fright > p.fright) play("eatpill.mp3");
     if (p.fruit && !game.fruit && key(game.pos) === key(FRUIT_SPAWN)) play("eatfruit.wav");
-    loop("eating.mp3", game.eaten.size > p.eaten.size);
+    if (game.t < p.t) ate.current = -Infinity; // a death reset the clock
+    if (game.eaten.size > p.eaten.size) ate.current = game.t;
+    loop("eating.mp3", game.t - ate.current < CHOMP_HOLD);
     loop("siren.mp3", game.t > 0 && game.lives > 0 && !cleared(game) && !game.bite); // ponytail: no separate frightened siren
   }, [game]);
   useEffect(() => () => Object.values(loops.current).forEach((a) => a.pause()), []);
@@ -387,10 +430,11 @@ function drawMaze(canvas: HTMLCanvasElement) {
  *     bite-points number during the freeze, the score `<output>`, Pac-Man
  *     (`rotate` from `atan2(dRow, dCol)` since the art faces right at 0°, and
  *     `hidden` during a bite), and the row of life pips (`lives - 1`).
- *   - Each ghost picks its sprite from `mode`/facing/`game.t` frame parity:
- *     `eyes-*` when eaten, `name-face-frame` when normal, `scared[-white]-frame`
- *     when frightened (white for the last {@link FRIGHT}`.flash` ticks, blinking
- *     on `game.t & 1`). A ghost not yet {@link released} isn't placed by
+ *   - Each ghost picks its sprite from `mode`/facing/`game.t` (every
+ *     {@link GHOST_FRAME} ticks the leg frame flips): `eyes-*` when eaten,
+ *     `name-face-frame` when normal, `scared[-white]-frame` when frightened
+ *     (white for the last {@link FRIGHT}`.flash` ticks, alternating every
+ *     {@link FLASH} ticks). A ghost not yet {@link released} isn't placed by
  *     {@link sprite}; instead a `.bob` div animates it in the house (CSS
  *     variables `--bob/--go/--back` tell the keyframes which way to drift and
  *     which two frames to alternate). The just-eaten ghost is hidden behind its
@@ -441,12 +485,12 @@ export default function Map() {
       {DOTS.power.filter(left).map((t) => sprite(t, "/power-pellet.svg", "sprite power"))}
       {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}
       {game.ghosts.map((gh, i) => {
-        const frame = (game.t >> 1) & 1;
+        const frame = Math.floor(game.t / GHOST_FRAME) & 1;
         const face = FACE[String(gh.dir)] ?? "up";
         const src =
           gh.mode === "eyes" ? `eyes-${face}`
           : gh.mode === "normal" ? `${GHOSTS[i].name}-${face}-${frame}`
-          : game.fright <= FRIGHT.flash && game.t & 1 ? `scared-white-${frame}`
+          : game.fright <= FRIGHT.flash && Math.floor(game.t / FLASH) & 1 ? `scared-white-${frame}`
           : `scared-${frame}`;
         const { name } = GHOSTS[i];
         if (!released(game, i)) {

@@ -279,13 +279,16 @@ export const released = (g: Game, i: number) =>
   i < g.freed || g.eaten.size - g.since >= (g.since ? RELEASE_AFTER_DEATH : RELEASE)[i]; // ponytail: a death at 0 dots keeps the start table
 
 /**
- * Milliseconds per tile of movement — the master speed knob.
+ * Milliseconds per sim tick: one arcade frame (60 Hz).
  *
- * Why: the game advances one tile per tick; this is how long a tick lasts, so
- * it sets the whole pace. Bigger = slower.
- * Used by: `Map.tsx`'s tick loop; `SEC` and everything downstream.
+ * Why: the arcade's speed tables are in fractions of a pixel per *frame*, and a
+ * tick is now a frame, not a tile — every mover banks a fraction of a tile
+ * each tick and steps when a whole tile is banked (see {@link SPEED}). Running
+ * the sim at frame rate is what lets Pac-Man, ghosts, tunnels and Elroy all
+ * move at different speeds on a tile grid without jitter.
+ * Used by: `Map.tsx`'s tick loop; `SEC`, `FULL` and everything downstream.
  */
-export const TICK_MS = 166; // ms per tile: bigger = slower
+export const TICK_MS = 1000 / 60;
 
 /**
  * Ticks per second — the conversion factor from seconds to ticks.
@@ -294,6 +297,77 @@ export const TICK_MS = 166; // ms per tile: bigger = slower
  * once lets the phase/fright/fruit constants read as `7 * SEC` etc.
  */
 const SEC = 1000 / TICK_MS;
+
+/**
+ * Tiles moved per tick at 100% speed.
+ *
+ * Why: the Pac-Man Dossier pins 100% at 75.7576 px/s over 8-px tiles, i.e.
+ * ≈9.47 tiles/s or ≈105.6 ms per tile; everything in {@link SPEED} is a
+ * percentage of this. `PACE` scales the whole game (0.75 ≈ 25% slower than the
+ * arcade, which felt too quick on this board) without touching the relative
+ * speeds.
+ */
+const PACE = 0.8 * 0.94;
+const FULL = (75.7576 / 8) * (TICK_MS / 1000) * PACE;
+
+/**
+ * Level-1 movement speeds, as percentages of {@link FULL} (Pac-Man Dossier,
+ * table A.1).
+ *
+ * Why: the arcade's feel comes from *relative* speeds — Pac-Man outruns the
+ * ghosts on open track but a 1-frame stop per dot (`stall`) lets a chaser
+ * close in, ghosts crawl through the tunnel, frightened ghosts are slow and
+ * Pac-Man is quick, and Blinky becomes "Cruise Elroy" near the end.
+ * What, per field:
+ *  - `pacman` / `pacmanFright`: Pac-Man normally / while ghosts are frightened.
+ *  - `ghost`: any ghost on the open maze (also used while leaving the house).
+ *  - `tunnel`: a ghost within {@link TUNNEL_REACH} tiles of a teleport; Pac-Man
+ *    is unaffected. Overrides everything but `eyes`.
+ *  - `fright`: a frightened (edible) ghost.
+ *  - `eyes`: an eaten ghost racing home. Not in the Dossier; ≈2 px/frame as in
+ *    the frame-accurate reimplementations.
+ *  - `elroy`: `[dotsLeft, speed]` pairs, most urgent first — Blinky's speed
+ *    once at most that many dots remain (20 -> 80%, 10 -> 85%), suspended after
+ *    a death until Clyde has left the house, as in the arcade.
+ *  - `stall`: frames Pac-Man stops for on eating a pellet / a power pellet
+ *    (1 / 3). This is what turns his 80% into the Dossier's "~71% on dots".
+ * Later levels (2-4: Pac-Man 90/79, ghosts 85, tunnel 45, fright 95/55;
+ * 5-20: 100/87, 95, 50, 100/60) are documented here for when levels exist.
+ * Used by: {@link tick} via `rate`; `Map.tsx` doesn't need it.
+ */
+export const SPEED = {
+  pacman: 80,
+  pacmanFright: 90,
+  ghost: 75,
+  tunnel: 40,
+  fright: 50,
+  eyes: 160,
+  elroy: [[10, 85], [20, 80]] as const,
+  stall: { [POINTS.pellet]: 1, [POINTS.power]: 3 } as Record<number, number>,
+};
+
+/**
+ * Percent of full speed -> tiles per tick.
+ */
+const rate = (pct: number) => (pct / 100) * FULL;
+
+/**
+ * How far (in tiles, along the row) from a teleport mouth a ghost is still
+ * "in the tunnel" and slowed to `SPEED.tunnel`.
+ *
+ * Why: the arcade slows ghosts for the whole side corridor, not just the
+ * off-screen tile; this map's corridors are short, so 2 covers the stretch
+ * before the first side opening.
+ */
+const TUNNEL_REACH = 2;
+
+/**
+ * Is this tile in a tunnel slow zone? See {@link TUNNEL_REACH}.
+ *
+ * Used by: `rate`-selection in {@link tick}.
+ */
+const tunnel = (t: Tile) =>
+  TELEPORTS.some(({ endpoints }) => endpoints.some((e) => e.y === t.row && Math.abs(e.x - t.col) <= TUNNEL_REACH));
 
 /**
  * Ticks of no-dot-eaten that force the next waiting ghost out (4s, level 1).
@@ -407,10 +481,12 @@ export function advance(pos: Tile, want: MovementDelta, dir: MovementDelta): { p
  * re-enter). `trail` is the last few tile keys, used by {@link moveGhost} to
  * break out of 2-wide-corridor loops. `mode` is `normal` (chase/scatter),
  * `scared` (frightened, edible), or `eyes` (eaten, pathing home to regenerate).
+ * `acc` is banked movement in tiles (0..1): each tick adds this ghost's
+ * {@link SPEED} rate and the ghost steps a tile once it reaches 1.
  * Used by: {@link moveGhost}, `goHome`, `caught`, {@link tick}, and `Map.tsx`'s
  * ghost render loop.
  */
-export type Ghost = { pos: Tile; dir: MovementDelta; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes" };
+export type Ghost = { pos: Tile; dir: MovementDelta; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes"; acc: number };
 
 /**
  * The entire game state — everything one {@link tick} reads and rewrites.
@@ -435,6 +511,8 @@ export type Ghost = { pos: Tile; dir: MovementDelta; out: boolean; trail: string
 export type Game = {
   pos: Tile;
   dir: MovementDelta;
+  /** Pac-Man's banked movement in tiles: he steps when it reaches 1. Goes negative after a dot (the arcade's per-dot stop). */
+  acc: number;
   eaten: Set<string>;
   /** Ticks the fruit stays on the board; 0 = no fruit out. */
   fruit: number;
@@ -470,7 +548,7 @@ export type Game = {
  * {@link tick} reuses `NEW_GAME.ghosts` to reset every ghost to its house tile.
  * How: Pac-Man at {@link PACMAN_SPAWN}, not moving; empty `eaten`; all clocks
  * and counters zero; `lives` = {@link LIVES}; ghosts mapped from {@link GHOSTS}
- * to `{ pos: tile, dir: [0,0], out: false, trail: [], mode: "normal" }`.
+ * to `{ pos: tile, dir: [0,0], out: false, trail: [], mode: "normal", acc: 0 }`.
  * What: a fully-populated {@link Game}.
  * Design: a single frozen-in-spirit constant (never mutated — {@link tick}
  * copies out of it) so "new game" and "post-death reset" can't drift apart.
@@ -478,12 +556,13 @@ export type Game = {
 export const NEW_GAME: Game = {
   pos: PACMAN_SPAWN,
   dir: [0, 0],
+  acc: 0,
   eaten: new Set(),
   fruit: 0,
   fruits: 0,
   idle: 0,
   freed: 0,
-  ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [], mode: "normal" })),
+  ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [], mode: "normal", acc: 0 })),
   t: 0,
   clock: 0,
   score: 0,
@@ -620,25 +699,26 @@ const TRAIL = 4;
  * if there's a `target`, replace it with any neighbour that is "fresher" (not
  * in `trail`) or — same freshness — strictly closer by {@link dist2}, scanning
  * in {@link MVMT_DELTAS} order so ties resolve up>left>down>right. `target: null` is
- * frightened mode: keep the random pick. `flip` reverses the incoming
- * direction first, used on a mode change / power pellet. Finally push the
- * vacated tile onto `trail` and set `out` once clear of the house.
- * What: a pure `(Ghost, Tile | null, flip?) => Ghost`.
+ * frightened mode: keep the random pick. A mode change / power pellet reverses
+ * `dir` before this is called (see {@link tick}), so the reversal is simply
+ * "the way we now face". Finally push the vacated tile onto `trail` and set
+ * `out` once clear of the house.
+ * What: a pure `(Ghost, Tile | null) => Ghost`.
  * Used by: {@link tick}, for every `out`/releasable ghost that isn't in `eyes`
- * mode.
+ * mode, on the tick its banked `acc` reaches a whole tile.
  * Design: the `trail` "freshness" tie-break is the one non-arcade addition —
  * pure greedy steering visibly loops on this custom map. Random-then-refine
  * keeps frightened movement genuinely unpredictable while chase stays
  * deterministic.
  */
-export function moveGhost(g: Ghost, target: Tile | null, flip = false): Ghost {
-  const dir: MovementDelta = flip ? [-g.dir[0], -g.dir[1]] : g.dir;
+export function moveGhost(g: Ghost, target: Tile | null): Ghost {
+  const { dir } = g;
   const open = MVMT_DELTAS.flatMap((d) => {
     if (d[0] === -dir[0] && d[1] === -dir[1]) return [];
     const pos = step(g.pos.row, g.pos.col, d[0], d[1], !g.out);
     return pos ? [{ pos, dir: d, fresh: !g.trail.includes(key(pos)) }] : [];
   });
-  if (!open.length) return { ...g, dir }; // boxed in: turn around, move next tick
+  if (!open.length) return { ...g, dir: [-dir[0], -dir[1]] }; // boxed in: turn around, move next step
   let best = open[Math.floor(Math.random() * open.length)];
   if (target)
     for (const c of open) {
@@ -686,66 +766,64 @@ function towards(from: Tile, to: Tile): Tile | null {
 }
 
 /**
- * Move an "eyes" ghost two tiles toward its home tile; regenerate it there.
+ * Move an "eyes" ghost one tile toward its home tile; regenerate it on arrival.
  *
- * Why: an eaten ghost races home at double speed and comes back as a normal
+ * Why: an eaten ghost races home (at `SPEED.eyes`) and comes back as a normal
  * ghost — that's the reward loop for clearing a frightened chain.
- * How: up to two hops via {@link towards} (the "double speed"); the direction
- * is `sign` of the delta so the sprite faces its travel. On arrival at
- * `GHOSTS[i].tile` it returns to `mode: "normal"`, `out: false`, `trail: []`,
- * so {@link moveGhost} then walks it back out the door.
+ * How: one hop via {@link towards}; the direction is `sign` of the delta so
+ * the sprite faces its travel. Landing on `GHOSTS[i].tile` returns it to
+ * `mode: "normal"`, `out: false`, `trail: []`, so {@link moveGhost} then walks
+ * it back out the door.
  * What: a module-private `(Ghost, number) => Ghost`.
- * Used by: {@link tick}, first thing, for any ghost in `eyes` mode.
- * Design: two `towards` calls rather than a speed field keeps "double speed"
- * local and obvious; resetting `out`/`trail` on regen means the normal
- * house-exit logic takes over with no special case.
+ * Used by: {@link tick}, for any ghost in `eyes` mode, on the tick its banked
+ * `acc` reaches a whole tile.
+ * Design: resetting `out`/`trail` on regen means the normal house-exit logic
+ * takes over with no special case.
  */
 function goHome(gh: Ghost, i: number): Ghost {
-  for (let n = 0; n < 2; n++) {
-    if (key(gh.pos) === key(GHOSTS[i].tile)) return { ...gh, mode: "normal", out: false, trail: [] };
-    const pos = towards(gh.pos, GHOSTS[i].tile) ?? gh.pos;
-    gh = { ...gh, pos, dir: [Math.sign(pos.row - gh.pos.row), Math.sign(pos.col - gh.pos.col)] };
-  }
-  return gh;
+  const home = GHOSTS[i].tile;
+  const pos = towards(gh.pos, home) ?? gh.pos;
+  const dir: MovementDelta = [Math.sign(pos.row - gh.pos.row), Math.sign(pos.col - gh.pos.col)];
+  return key(pos) === key(home) ? { ...gh, pos, dir, mode: "normal", out: false, trail: [] } : { ...gh, pos, dir };
 }
 
 /**
- * Did a non-frightened ghost just catch Pac-Man on this tick?
+ * Did ghost `i` and Pac-Man come into contact on this tick?
  *
- * Why: same-tile is the obvious catch, but on a grid two things moving toward
+ * Why: same-tile is the obvious contact, but on a grid two things moving toward
  * each other can *swap* tiles in one tick without ever sharing one; the arcade
- * counts that as a catch and so must this, or ghosts phase through Pac-Man.
- * How: for each ghost that is `out` and `mode === "normal"`: catch if it ends
- * on Pac-Man's new tile, or if it ended on Pac-Man's *old* tile while Pac-Man
- * ended on its *old* tile (a head-on swap).
- * What: a module-private `(before: Game, after: Game) => boolean`.
- * Used by: {@link tick}, after the ghosts move, to decide a death.
+ * counts that as contact and so must this, or ghosts phase through Pac-Man.
+ * How: true if the ghost ends on Pac-Man's new tile, or if it ended on Pac-Man's
+ * *old* tile while Pac-Man ended on its *old* tile (a head-on swap).
+ * What: a module-private `(before: Game, after: Game, i: number) => boolean`.
+ * Used by: {@link tick}, after the ghosts move — a `scared` contact is a bite,
+ * a `normal` one a death.
  * Design: takes both the pre- and post-move states because the swap test needs
- * both endpoints; `eyes`/`scared` ghosts are excluded here — a `scared` ghost
- * on Pac-Man's tile is handled earlier as a bite.
+ * both endpoints.
  */
-function caught(before: Game, after: Game): boolean {
-  return after.ghosts.some((gh, i) => {
-    if (!gh.out || gh.mode !== "normal") return false;
-    if (key(gh.pos) === key(after.pos)) return true;
-    const was = before.ghosts[i].pos;
-    return key(gh.pos) === key(before.pos) && key(was) === key(after.pos);
-  });
+function met(before: Game, after: Game, i: number): boolean {
+  const gh = after.ghosts[i];
+  if (key(gh.pos) === key(after.pos)) return true;
+  const was = before.ghosts[i].pos;
+  return key(gh.pos) === key(before.pos) && key(was) === key(after.pos);
 }
 
 /**
- * Advance the whole game by one tile-step. The core of the sim.
+ * Advance the whole game by one frame. The core of the sim.
  *
  * Why: the render loop needs exactly one pure function to call each frame;
- * everything the game *does* in 200ms happens here, so state stays consistent
- * and a step is replayable.
+ * everything the game *does* in a 60th of a second happens here, so state
+ * stays consistent and a step is replayable.
  * How, in order:
  *  1. Bail if the game is over/won (return `g` unchanged), or if a post-bite
  *     freeze is running (just count `bite.left` down — the fright clock freezes
  *     too).
- *  2. Move Pac-Man with {@link advance}; see what tile he's on.
- *  3. Eat: an uneaten dot adds its {@link POINTS} and a key to `eaten`; the
- *     cherry (fruit out and on {@link FRUIT_SPAWN}) adds `POINTS.cherry` and
+ *  2. Bank Pac-Man's speed for this frame into `acc`; once a whole tile is
+ *     banked, move him with {@link advance} and see what tile he's on. Stopped
+ *     at a wall, `acc` stays primed at 1 so a new key moves him at once.
+ *  3. Eat: an uneaten dot adds its {@link POINTS} and a key to `eaten` — and
+ *     takes `SPEED.stall` frames back out of `acc` (the arcade's per-dot stop);
+ *     the cherry (fruit out and on {@link FRUIT_SPAWN}) adds `POINTS.cherry` and
  *     clears the fruit. Count the fruit timer down; spawn the next fruit when
  *     `eaten.size` crosses the next {@link FRUIT_AT} threshold and none is out.
  *  4. Score/lives: add the extra life the first tick `score >= EXTRA_LIFE_AT`.
@@ -755,19 +833,19 @@ function caught(before: Game, after: Game): boolean {
  *     frees the next still-caged ghost.
  *  7. If that ate the last dot, return now — ghosts get no move on the winning
  *     tile.
- *  8. Move ghosts: `eyes` -> {@link goHome}; otherwise set `scared` from
- *     power/fright, skip a still-caged ghost, let frightened ghosts move only
- *     every other tick (half speed), pick a target (door if not out, `null` if
- *     scared, corner if scattering, else `TARGET[i]`), and call
- *     {@link moveGhost} — with `flip` on a scatter/chase flip or a power
- *     pellet.
- *  9. Resolve contact: a `scared` ghost on Pac-Man's tile is a bite —
+ *  8. Move ghosts. Each banks its own {@link SPEED} rate — `eyes`, tunnel,
+ *     frightened, Blinky's Elroy boost, or plain — and steps only when a whole
+ *     tile is banked. `eyes` -> {@link goHome}; otherwise set `scared` from
+ *     power/fright, skip a still-caged ghost, reverse `dir` on a scatter/chase
+ *     flip or a power pellet, pick a target (door if not out, `null` if scared,
+ *     corner if scattering, else `TARGET[i]`), and call {@link moveGhost}.
+ *  9. Resolve contact ({@link met}): a `scared` ghost is a bite —
  *     `POINTS.ghost << combo` points, that ghost -> `eyes`, and a one-second
- *     `bite` freeze. Otherwise, if {@link caught}, it's a death: decrement
- *     `lives`, record `since`, put everyone back on their start tiles, and zero
- *     the clocks/timers (dots and score persist).
+ *     `bite` freeze. A `normal`, `out` ghost is a death: decrement `lives`,
+ *     record `since`, put everyone back on their start tiles, and zero the
+ *     clocks/timers (dots and score persist).
  * What: a pure `(Game, want: Dir) => Game`.
- * Used by: `Map.tsx`'s `setInterval` tick (`setGame(g => tick(g, want.current))`).
+ * Used by: `Map.tsx`'s frame loop (`setGame(g => tick(g, want.current))`, once per {@link TICK_MS} elapsed).
  * Design: one big function, top-to-bottom, spreading a fresh object at each
  * stage rather than mutating — the ordering (eat, then move ghosts, then check
  * collisions) is what makes the rules line up with the arcade, and purity is
@@ -776,10 +854,16 @@ function caught(before: Game, after: Game): boolean {
 export function tick(g: Game, want: MovementDelta): Game {
   if (!g.lives || cleared(g)) return g; // game over or completed
   if (g.bite) return { ...g, bite: g.bite.left > 1 ? { ...g.bite, left: g.bite.left - 1 } : null }; // everything freezes, fright clock included
-  const { pos, dir } = advance(g.pos, want, g.dir);
+  const pace = rate(g.fright ? SPEED.pacmanFright : SPEED.pacman);
+  let acc = g.acc + pace, pos = g.pos, dir = g.dir;
+  if (acc >= 1) {
+    ({ pos, dir } = advance(g.pos, want, g.dir));
+    acc = key(pos) === key(g.pos) ? 1 : acc - 1; // blocked: stay primed so a new key moves him at once
+  }
   const k = key(pos);
   const dot = g.eaten.has(k) ? 0 : (DOT_KEYS.get(k) ?? 0);
   const eaten = dot ? new Set(g.eaten).add(k) : g.eaten;
+  if (dot) acc -= (SPEED.stall[dot] ?? 0) * pace; // the arcade stops Pac-Man for a frame per dot, three per power pellet
   const cherry = fruitOut(g) && k === key(FRUIT_SPAWN);
   // The fruit counts down while out; the next one appears once its dot trigger is reached and no fruit is out.
   let fruit = cherry ? 0 : Math.max(0, g.fruit - 1), fruits = g.fruits;
@@ -795,27 +879,35 @@ export function tick(g: Game, want: MovementDelta): Game {
   let idle = dot ? 0 : g.idle + 1, freed = g.freed;
   const waiting = GHOSTS.findIndex((_, i) => !released(g, i));
   if (idle >= RELEASE_IDLE && waiting >= 0) { idle = 0; freed = waiting + 1; }
-  const next = { ...g, pos, dir, eaten, fruit, fruits, score, bonus, lives, t, clock, fright, idle, freed, combo: power ? 0 : g.combo };
+  const next = { ...g, pos, dir, acc, eaten, fruit, fruits, score, bonus, lives, t, clock, fright, idle, freed, combo: power ? 0 : g.combo };
   if (cleared(next)) return next; // last dot: the ghosts don't get a move on it
   // A power pellet, like a mode switch, turns every ghost around.
   const flip = scatter(clock) !== scatter(g.clock) || power;
+  // Blinky's Elroy boost: on once few enough dots remain, but off after a death until Clyde is back out.
+  const left = DOT_KEYS.size - eaten.size;
+  const elroy = g.ghosts[3].out ? SPEED.elroy.find(([dots]) => left <= dots)?.[1] : undefined;
   const ghosts = g.ghosts.map((gh, i) => {
-    if (gh.mode === "eyes") return goHome(gh, i);
+    if (gh.mode === "eyes") {
+      const acc = gh.acc + rate(SPEED.eyes);
+      return acc < 1 ? { ...gh, acc } : goHome({ ...gh, acc: acc - 1 }, i);
+    }
     const scared = power || (gh.mode === "scared" && fright > 0);
     gh = { ...gh, mode: scared ? "scared" : "normal" };
     if (!gh.out && !released(next, i)) return gh;
-    if (scared && !power && t % 2) return gh; // frightened ghosts crawl at half speed
+    if (flip) gh = { ...gh, dir: [-gh.dir[0], -gh.dir[1]] };
+    const acc = gh.acc + rate(tunnel(gh.pos) ? SPEED.tunnel : scared ? SPEED.fright : (i === 0 && elroy) || SPEED.ghost);
+    if (acc < 1) return { ...gh, acc };
     const target = !gh.out ? GHOSTS[i].door : scared ? null : scatter(clock) ? GHOSTS[i].corner : TARGET[i](next);
-    return moveGhost(gh, target, flip);
+    return moveGhost({ ...gh, acc: acc - 1 }, target);
   });
   const after = { ...next, ghosts };
-  const bit = ghosts.findIndex((gh) => gh.mode === "scared" && key(gh.pos) === k);
+  const bit = ghosts.findIndex((gh, i) => gh.mode === "scared" && met(g, after, i));
   if (bit >= 0) {
     const points = POINTS.ghost << g.combo;
     const eyes = ghosts.map((gh, i) => (i === bit ? { ...gh, mode: "eyes" as const } : gh));
     return { ...after, ghosts: eyes, score: score + points, combo: g.combo + 1, bite: { pos, points, left: SEC } };
   }
-  if (!caught(g, after)) return after;
+  if (!ghosts.some((gh, i) => gh.out && gh.mode === "normal" && met(g, after, i))) return after;
   // Death: everyone back to their start tiles, mode clock and fright reset; dots and score stay.
-  return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, clock: 0, fright: 0, idle: 0, freed: 0 };
+  return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], acc: 0, ghosts: NEW_GAME.ghosts, t: 0, clock: 0, fright: 0, idle: 0, freed: 0 };
 }

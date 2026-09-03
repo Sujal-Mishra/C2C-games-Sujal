@@ -51,6 +51,7 @@ export {
   GHOST_HOUSE,
   GHOST_SPAWN,
   GHOSTS,
+  SPEED,
   TICK_MS,
   NEW_GAME,
   PACMAN_SPAWN,
