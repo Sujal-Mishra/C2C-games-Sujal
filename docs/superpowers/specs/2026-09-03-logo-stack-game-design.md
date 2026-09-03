@@ -88,7 +88,7 @@ After `locked`, the controller selects the next randomized piece and returns to 
 
 Each successfully locked piece adds 100 points. No points are granted merely for releasing, contacting, or losing a piece.
 
-Each run starts with two lives. If the active piece crosses the lower viewport failure boundary, only that failed piece is removed and one life is consumed; the existing stack and score remain. The first miss spawns another randomized piece. The second miss ends the run. Choosing restart creates a fresh world with two lives, a score of zero, and an empty platform.
+Each run starts with two independent lives. If the active piece crosses the lower viewport failure boundary, that life ends. The first miss consumes one life and creates a fresh physics world with an empty platform, a reset camera, and a score of zero. The second miss ends the run. The highest score achieved in either life is retained as the player's personal best in local storage, including across future sessions. Choosing restart creates a fresh world with two lives.
 
 ## Component Boundaries
 
@@ -123,7 +123,7 @@ Automated tests will cover:
 - Drop input changes `aiming` to `falling` only once.
 - Sustained low motion locks a piece; renewed motion resets settlement.
 - A locked piece adds exactly 100 points.
-- The first miss consumes one life without resetting score or the locked stack.
+- The first miss consumes one life and resets the score, locked stack, and camera for an independent second life.
 - The second miss enters `gameOver`.
 - Restart clears pieces and returns the score to zero and lives to two.
 - The camera target moves upward when the stack reaches half the viewport height.

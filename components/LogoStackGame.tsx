@@ -64,13 +64,23 @@ export function LogoStackGame() {
     startNextPiece();
   }, [startNextPiece]);
 
+  const startFreshLife = useCallback(() => {
+    setScore(0);
+    setPhase("aiming");
+    setRotation(0);
+    setCurrentShape(pickShape());
+    setNextShape(pickShape());
+    setPieceId(0);
+    setRunId((value) => value + 1);
+  }, []);
+
   const handlePieceMissed = useCallback(() => {
     const remainingLives = loseLife(livesRef.current);
     livesRef.current = remainingLives;
     setLives(remainingLives);
-    if (remainingLives > 0) startNextPiece();
+    if (remainingLives > 0) startFreshLife();
     return remainingLives > 0;
-  }, [startNextPiece]);
+  }, [startFreshLife]);
 
   const endGame = useCallback(() => {
     setMenuOpen(false);
@@ -82,19 +92,13 @@ export function LogoStackGame() {
   const handleGameOver = useCallback(() => endGame(), [endGame]);
 
   const restart = useCallback(() => {
-    setScore(0);
     livesRef.current = INITIAL_LIVES;
     setLives(INITIAL_LIVES);
-    setPhase("aiming");
-    setRotation(0);
-    setCurrentShape(pickShape());
-    setNextShape(pickShape());
-    setPieceId(0);
     setMenuOpen(false);
     setEnded(false);
     setShowScore(false);
-    setRunId((value) => value + 1);
-  }, []);
+    startFreshLife();
+  }, [startFreshLife]);
 
   useEffect(() => {
     setBestScore(scoreStoreRef.current.readBest());

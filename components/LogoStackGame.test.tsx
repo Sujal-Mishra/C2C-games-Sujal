@@ -16,6 +16,7 @@ vi.mock("./GameCanvas", () => ({
     onGameOver: () => void;
     onPhaseChange: (phase: string) => void;
     paused?: boolean;
+    runId: number;
   }, ref) {
     useImperativeHandle(ref, () => ({
       moveTo: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("./GameCanvas", () => ({
     return (
       <div aria-label="Logo Stack playfield">
         <span data-testid="canvas-paused">{String(Boolean(props.paused))}</span>
+        <span data-testid="canvas-run-id">{props.runId}</span>
         <button onClick={props.onLocked}>settle test piece</button>
         <button onClick={missPiece}>lose test piece</button>
       </div>
@@ -72,35 +74,42 @@ test("each locked component awards exactly 100 points", async () => {
   expect(screen.getByLabelText("Current score")).toHaveTextContent("200");
 });
 
-test("the first miss consumes one life and continues the same scored run", async () => {
+test("the first miss starts an independent second life with a fresh score and world", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
 
-  expect(screen.getByLabelText("Current score")).toHaveTextContent("100");
+  expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
   expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("1");
+  expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("1");
   expect(screen.queryByRole("dialog", { name: /game ended/i })).not.toBeInTheDocument();
   expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
+  expect(localStorage.getItem("logo-stack-best")).toBe("100");
 });
 
-test("the second miss ends the run and retry restores score and lives", async () => {
+test("the second miss ends the run and preserves the best score across both lives", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
+  await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+  await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
 
   expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("0");
   expect(screen.getByRole("dialog", { name: /game ended/i })).toBeVisible();
   await user.click(screen.getByRole("button", { name: /view score/i }));
   expect(screen.getByText(/run score: 100/i)).toBeVisible();
+  expect(screen.getByText(/best score: 200/i)).toBeVisible();
+  expect(localStorage.getItem("logo-stack-best")).toBe("200");
 
   await user.click(screen.getByRole("button", { name: /^retry$/i }));
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
   expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+  expect(localStorage.getItem("logo-stack-best")).toBe("200");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
@@ -121,7 +130,6 @@ test("Retry in the pause menu resets the current run", async () => {
   render(<LogoStackGame />);
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
-  await user.click(screen.getByRole("button", { name: /lose test piece/i }));
   fireEvent.keyDown(window, { key: "Escape" });
   await user.click(screen.getByRole("button", { name: /^retry$/i }));
 
