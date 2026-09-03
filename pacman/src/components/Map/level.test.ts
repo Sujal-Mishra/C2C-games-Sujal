@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FRIGHT, FRUIT_AT, FRUIT_SPAWN, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
+import { EXTRA_LIFE_AT, FRIGHT, FRUIT_AT, FRUIT_SPAWN, LIVES, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, fruitOut, moveGhost, scatter, step, tick, type Ghost } from "./level.ts";
 
 test("walls block, open tiles pass", () => {
   assert.equal(step(1, 1, -1, 0), null); // into the top border
@@ -111,4 +111,30 @@ test("a power pellet frightens the ghosts: reverse, wander at half speed, time o
   }
   assert.equal(g.fright, 1);
   assert.equal(tick(g, [0, 0]).fright, 0);
+});
+
+test("an unfrightened ghost on Pac-Man's tile costs a life and resets the board, not the dots", () => {
+  // Blinky heads left from (1,3), Pac-Man right from (1,1): both land on (1,2).
+  const blinky: Ghost = { pos: { row: 1, col: 3 }, dir: [0, -1], out: true, trail: [] };
+  const start = { ...NEW_GAME, pos: { row: 1, col: 1 }, eaten: new Set(["9,9"]), ghosts: [blinky, ...NEW_GAME.ghosts.slice(1)], t: 50 };
+  let g = tick(start, [0, 1]);
+  assert.equal(g.lives, LIVES - 1);
+  assert.deepEqual(g.pos, NEW_GAME.pos);
+  assert.deepEqual(g.ghosts, NEW_GAME.ghosts);
+  assert.equal(g.t, 0);
+  assert.equal(g.since, 2, "dots eaten so far, for the after-death release table");
+  assert.ok(g.eaten.has("9,9") && g.eaten.has("1,2"), "dots stay eaten");
+
+  assert.equal(tick({ ...start, fright: 5 }, [0, 1]).lives, LIVES, "frightened ghosts don't kill");
+
+  g = tick({ ...start, lives: 1 }, [0, 1]);
+  assert.equal(g.lives, 0);
+  assert.equal(tick(g, [0, 1]), g, "game over: frozen");
+});
+
+test("one extra life at 10,000 points", () => {
+  let g = tick({ ...NEW_GAME, pos: { row: 1, col: 1 }, score: EXTRA_LIFE_AT - POINTS.pellet }, [0, 1]);
+  assert.equal(g.lives, LIVES + 1);
+  g = tick(g, [0, 1]);
+  assert.equal(g.lives, LIVES + 1, "only once");
 });

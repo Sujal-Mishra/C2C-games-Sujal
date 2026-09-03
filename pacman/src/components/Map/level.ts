@@ -63,6 +63,9 @@ export const FRUIT_AT = [70, 170];
 
 /** Arcade points. ponytail: ghost points (200/400/800/1600) come with frightened mode. */
 export const POINTS = { pellet: 10, power: 50, cherry: 100 };
+/** Three Pac-Men per game; one bonus life at 10,000 points. The cherry is points only. */
+export const LIVES = 3;
+export const EXTRA_LIFE_AT = 10_000;
 
 /**
  * Ghost house: the two 3x2 pockets inside the "2" — rows 11-12 (open to the
@@ -85,8 +88,11 @@ export const GHOSTS = [
 ];
 /** Dots eaten before each ghost leaves the house (level 1). ponytail: no 4s no-dot fallback timer. */
 const RELEASE = [0, 0, 30, 60];
+/** After a death the arcade counts dots from the reset instead, with these thresholds. */
+const RELEASE_AFTER_DEATH = [0, 7, 17, 32];
 /** Ghost `i` exists once its release count is met; before that it's not on the board at all. */
-export const released = (g: Game, i: number) => g.eaten.size >= RELEASE[i];
+export const released = (g: Game, i: number) =>
+  g.eaten.size - g.since >= (g.since ? RELEASE_AFTER_DEATH : RELEASE)[i]; // ponytail: a death at 0 dots keeps the start table
 
 export const TICK_MS = 200; // ms per tile: bigger = slower
 const SEC = 1000 / TICK_MS;
@@ -151,6 +157,12 @@ export type Game = {
   score: number;
   /** Frightened ticks left; 0 = normal. */
   fright: number;
+  /** Pac-Men left including the one in play; 0 = game over. */
+  lives: number;
+  /** Dots eaten at the last death, for the after-death release table. */
+  since: number;
+  /** The 10,000-point life has been awarded. */
+  bonus: boolean;
 };
 
 export const NEW_GAME: Game = {
@@ -162,6 +174,9 @@ export const NEW_GAME: Game = {
   t: 0,
   score: 0,
   fright: 0,
+  lives: LIVES,
+  since: 0,
+  bonus: false,
 };
 
 /** A cherry is on the board once the next trigger is reached and until it's taken. */
@@ -217,8 +232,12 @@ export function moveGhost(g: Ghost, target: Tile | null, flip = false): Ghost {
   return { pos: best.pos, dir: best.dir, out: g.out || !house(best.pos), trail };
 }
 
-/** One tick: move Pac-Man, eat whatever he landed on, then move the ghosts. */
+/** Arcade collision: same tile as an unfrightened ghost. ponytail: swapping tiles in one tick passes through, as the arcade does. */
+const caught = (g: Game) => !g.fright && g.ghosts.some((gh) => gh.out && key(gh.pos) === key(g.pos));
+
+/** One tick: move Pac-Man, eat whatever he landed on, move the ghosts, then check for a death. */
 export function tick(g: Game, want: Dir): Game {
+  if (!g.lives) return g; // game over
   const { pos, dir } = advance(g.pos, want, g.dir);
   const k = key(pos);
   const dot = g.eaten.has(k) ? 0 : (DOT_KEYS.get(k) ?? 0);
@@ -226,10 +245,12 @@ export function tick(g: Game, want: Dir): Game {
   const fruit = fruitOut(g) && k === key(FRUIT_SPAWN);
   const fruitTaken = g.fruitTaken + (fruit ? 1 : 0);
   const score = g.score + dot + (fruit ? POINTS.cherry : 0);
+  const bonus = g.bonus || score >= EXTRA_LIFE_AT;
+  const lives = g.lives + (bonus && !g.bonus ? 1 : 0);
   const t = g.t + 1;
   const power = dot === POINTS.power;
   const fright = power ? FRIGHT.ticks : Math.max(0, g.fright - 1);
-  const next = { ...g, pos, dir, eaten, fruitTaken, score, t, fright };
+  const next = { ...g, pos, dir, eaten, fruitTaken, score, bonus, lives, t, fright };
   // A power pellet, like a mode switch, turns every ghost around. ponytail: the mode timer keeps running while frightened.
   const flip = scatter(t) !== scatter(g.t) || power;
   const ghosts = g.ghosts.map((gh, i) => {
@@ -238,5 +259,8 @@ export function tick(g: Game, want: Dir): Game {
     const target = !gh.out ? GHOSTS[i].door : fright ? null : scatter(t) ? GHOSTS[i].corner : TARGET[i](next);
     return moveGhost(gh, target, flip);
   });
-  return { ...next, ghosts };
+  const after = { ...next, ghosts };
+  if (!caught(after)) return after;
+  // Death: everyone back to their start tiles, mode clock and fright reset; dots and score stay.
+  return { ...after, lives: lives - 1, since: eaten.size, pos: PACMAN_SPAWN, dir: [0, 0], ghosts: NEW_GAME.ghosts, t: 0, fright: 0 };
 }

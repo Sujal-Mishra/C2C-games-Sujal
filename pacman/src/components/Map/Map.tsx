@@ -127,10 +127,8 @@ export default function Map() {
   useEffect(() => drawMaze(canvas.current!), []);
 
   return (
-    <div
-      className="relative bg-black"
-      style={{ "--maze-cell": "clamp(6px, min(3vw, 3vh), 26px)" } as React.CSSProperties}
-    >
+    <div style={{ "--maze-cell": "clamp(6px, min(3vw, 3vh), 26px)" } as React.CSSProperties}>
+    <div className="relative bg-black">
       <canvas
         ref={canvas}
         width={MAZE_COLS * PX}
@@ -158,6 +156,9 @@ export default function Map() {
       <output aria-label="Score" className="fixed top-4 right-4 font-mono text-2xl text-white">
         {game.score}
       </output>
+      {!game.lives && (
+        <p className="absolute inset-0 grid place-items-center font-mono text-2xl text-red-500">GAME OVER</p>
+      )}
       <div
         role="img"
         aria-label="Pac-Man"
@@ -168,6 +169,12 @@ export default function Map() {
           rotate: `${(Math.atan2(dir[0], dir[1]) * 180) / Math.PI}deg`,
         }}
       />
+    </div>
+    <ul aria-label="Lives" className="flex gap-2 p-2">
+      {Array.from({ length: Math.max(0, game.lives - 1) }, (_, i) => (
+        <li key={i} className="size-(--maze-cell) bg-[url(/heart.svg)] bg-contain bg-no-repeat" />
+      ))}
+    </ul>
     </div>
   );
 }
