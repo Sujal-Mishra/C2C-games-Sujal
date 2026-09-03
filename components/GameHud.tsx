@@ -2,10 +2,12 @@ import type { GamePhase, ShapeType } from "@/game/types";
 
 interface GameHudProps {
   score: number;
+  bestScore?: number;
   nextShape: ShapeType;
   phase: GamePhase;
   onRotate: () => void;
   onDrop: () => void;
+  onMenu?: () => void;
 }
 
 function ShapePreview({ shape }: { shape: ShapeType }) {
@@ -16,15 +18,18 @@ function ShapePreview({ shape }: { shape: ShapeType }) {
   );
 }
 
-export function GameHud({ score, nextShape, phase, onRotate, onDrop }: GameHudProps) {
+export function GameHud({ score, bestScore = 0, nextShape, phase, onRotate, onDrop, onMenu }: GameHudProps) {
   const canAim = phase === "aiming";
   return (
     <>
       <div className="hud-panel score-panel">
-        <span className="hud-label">Score</span>
-        <output aria-label="Score" className="score-value" aria-live="polite">
-          {score}
-        </output>
+        <span className="hud-label">Current score</span>
+        <output aria-label="Current score" className="score-value" aria-live="polite">{score}</output>
+      </div>
+
+      <div className="hud-panel score-panel">
+        <span className="hud-label">Best score</span>
+        <output aria-label="Best score" className="score-value">{bestScore}</output>
       </div>
 
       <div className="hud-panel next-panel">
@@ -33,6 +38,7 @@ export function GameHud({ score, nextShape, phase, onRotate, onDrop }: GameHudPr
       </div>
 
       <div className="game-actions" aria-label="Game controls">
+        {onMenu && <button type="button" className="icon-button menu-button" aria-label="Open menu" onClick={onMenu}>☰</button>}
         <button type="button" className="action-button action-button--secondary" onClick={onRotate} disabled={!canAim}>
           <span className="button-icon" aria-hidden="true">↻</span>
           Rotate

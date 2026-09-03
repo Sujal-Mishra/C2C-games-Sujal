@@ -53,6 +53,22 @@ test("A, D, and arrow keys move while Space rotates and Enter continuously drops
   );
 });
 
+test("touch tap rotates and horizontal swipe moves without dropping", async () => {
+  render(<LogoStackGame />);
+  const playfield = screen.getByRole("application", { name: /logo stack playfield/i });
+  const piece = await screen.findByAltText("Current logo piece");
+  const startingLeft = piece.style.left;
+
+  fireEvent.pointerDown(playfield, { pointerId: 1, pointerType: "touch", clientX: 450, clientY: 200 });
+  fireEvent.pointerUp(playfield, { pointerId: 1, pointerType: "touch", clientX: 450, clientY: 200 });
+  await waitFor(() => expect(piece.style.transform).toContain("1.570796"));
+
+  fireEvent.pointerDown(playfield, { pointerId: 2, pointerType: "touch", clientX: 450, clientY: 200 });
+  fireEvent.pointerUp(playfield, { pointerId: 2, pointerType: "touch", clientX: 560, clientY: 205 });
+  await waitFor(() => expect(piece.style.left).not.toBe(startingLeft));
+  expect(screen.getByRole("button", { name: /^drop$/i })).toBeEnabled();
+});
+
 test("Enter releases the piece visibly, lets it settle on the platform, then locks it", async () => {
   render(<LogoStackGame />);
   const piece = await screen.findByAltText("Current logo piece");
@@ -66,7 +82,7 @@ test("Enter releases the piece visibly, lets it settle on the platform, then loc
   await new Promise((resolve) => setTimeout(resolve, 180));
   expect(Number.parseFloat(piece.style.top)).toBeGreaterThan(fallingTop);
 
-  await waitFor(() => expect(screen.getByLabelText("Score")).toHaveTextContent("100"), {
+  await waitFor(() => expect(screen.getByLabelText("Current score")).toHaveTextContent("100"), {
     timeout: 5000,
     interval: 50
   });

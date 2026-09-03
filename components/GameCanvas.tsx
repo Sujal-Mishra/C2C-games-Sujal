@@ -30,12 +30,14 @@ const SPAWN_MIN_X = 70;
 const SPAWN_MAX_X = 830;
 const PLATFORM_Y = 555;
 const FAILURE_Y = 690;
+export const CLEAR_LINE_Y = 130;
 
 export interface GameCanvasHandle {
   moveTo: (x: number) => void;
   moveBy: (delta: number) => void;
   rotate: () => void;
   drop: () => void;
+  clearLockedPieces: () => void;
 }
 
 interface GameCanvasProps {
@@ -47,6 +49,8 @@ interface GameCanvasProps {
   onGameOver: () => void;
   onReady?: () => void;
   onPhaseChange?: (phase: GamePhase) => void;
+  paused?: boolean;
+  onClearLineReached?: () => void;
 }
 
 interface SpriteSnapshot {
@@ -59,7 +63,7 @@ interface SpriteSnapshot {
 }
 
 export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function GameCanvas(
-  { currentShape, rotation, runId, pieceId = 0, onLocked, onGameOver, onReady, onPhaseChange },
+  { currentShape, rotation, runId, pieceId = 0, onLocked, onGameOver, onReady, onPhaseChange, paused = false, onClearLineReached },
   ref
 ) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -69,12 +73,17 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   const phaseRef = useRef<GameState>({ ...INITIAL_GAME_STATE });
   const spawnXRef = useRef(WORLD_WIDTH / 2);
   const failedRef = useRef(false);
-  const callbacksRef = useRef({ onLocked, onGameOver, onReady, onPhaseChange });
+  const pausedRef = useRef(paused);
+  const clearTriggeredRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const callbacksRef = useRef({ onLocked, onGameOver, onReady, onPhaseChange, onClearLineReached });
   const [sprites, setSprites] = useState<SpriteSnapshot[]>([]);
 
   useEffect(() => {
-    callbacksRef.current = { onLocked, onGameOver, onReady, onPhaseChange };
-  }, [onLocked, onGameOver, onReady, onPhaseChange]);
+    callbacksRef.current = { onLocked, onGameOver, onReady, onPhaseChange, onClearLineReached };
+  }, [onLocked, onGameOver, onReady, onPhaseChange, onClearLineReached]);
+
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   const setPhase = useCallback((state: GameState) => {
     phaseRef.current = state;
@@ -96,7 +105,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
 
   const moveTo = useCallback((x: number) => {
     const body = activeRef.current;
-    if (!body || phaseRef.current.phase !== "aiming") return;
+    if (pausedRef.current || !body || phaseRef.current.phase !== "aiming") return;
     const nextX = Math.min(SPAWN_MAX_X, Math.max(SPAWN_MIN_X, x));
     spawnXRef.current = nextX;
     Body.setPosition(body, { x: nextX, y: SPAWN_Y });
@@ -105,26 +114,38 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
 
   const rotate = useCallback(() => {
     const body = activeRef.current;
-    if (!body || phaseRef.current.phase !== "aiming") return;
+    if (pausedRef.current || !body || phaseRef.current.phase !== "aiming") return;
     Body.rotate(body, Math.PI / 2);
     syncSprites();
   }, [syncSprites]);
 
   const drop = useCallback(() => {
     const body = activeRef.current;
-    if (!body || phaseRef.current.phase !== "aiming") return;
+    if (pausedRef.current || !body || phaseRef.current.phase !== "aiming") return;
     setPhase(dropPiece(phaseRef.current));
     Body.setStatic(body, false);
     Sleeping.set(body, false);
     Body.setVelocity(body, { x: 0, y: 3 });
   }, [setPhase]);
 
+  const clearLockedPieces = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const active = activeRef.current;
+    const locked = piecesRef.current.filter((body) => body !== active);
+    locked.forEach((body) => World.remove(engine.world, body));
+    piecesRef.current = active ? [active] : [];
+    clearTriggeredRef.current = false;
+    syncSprites();
+  }, [syncSprites]);
+
   useImperativeHandle(ref, () => ({
     moveTo,
     moveBy: (delta) => moveTo(spawnXRef.current + delta),
     rotate,
-    drop
-  }), [drop, moveTo, rotate]);
+    drop,
+    clearLockedPieces
+  }), [clearLockedPieces, drop, moveTo, rotate]);
 
   useEffect(() => {
     const engine = Engine.create({ enableSleeping: true });
@@ -172,13 +193,17 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
           activeRef.current = null;
           syncSprites();
           callbacksRef.current.onLocked();
+          if (!clearTriggeredRef.current && piecesRef.current.some((body) => body.bounds.min.y <= CLEAR_LINE_Y)) {
+            clearTriggeredRef.current = true;
+            callbacksRef.current.onClearLineReached?.();
+          }
         }
       }
     };
 
     Events.on(engine, "afterUpdate", afterUpdate);
     const physicsTimer = window.setInterval(() => {
-      Engine.update(engine, 1000 / 60);
+      if (!pausedRef.current) Engine.update(engine, 1000 / 60);
       syncSprites();
     }, 1000 / 60);
     callbacksRef.current.onReady?.();
@@ -222,7 +247,24 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
       role="application"
       aria-label="Logo Stack playfield"
       data-phase={phaseRef.current.phase}
+      data-paused={paused}
+      onPointerDown={(event) => {
+        if (event.pointerType === "touch") touchStartRef.current = { x: event.clientX, y: event.clientY };
+      }}
+      onPointerUp={(event) => {
+        const start = touchStartRef.current;
+        touchStartRef.current = null;
+        if (event.pointerType !== "touch" || !start || pausedRef.current) return;
+        const deltaX = event.clientX - start.x;
+        const deltaY = event.clientY - start.y;
+        if (Math.abs(deltaX) >= 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          moveTo(spawnXRef.current + Math.sign(deltaX) * 72);
+        } else if (Math.hypot(deltaX, deltaY) < 18) {
+          rotate();
+        }
+      }}
     >
+      <div className="clear-line" aria-hidden="true" />
       <div className="pieces-layer">
         {sprites.map((sprite) => (
           <img

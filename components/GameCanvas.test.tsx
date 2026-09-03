@@ -17,6 +17,7 @@ test("creates an accessible playfield and reports readiness", async () => {
 
   expect(screen.getByRole("application", { name: /logo stack playfield/i })).toBeVisible();
   expect(screen.getByTestId("platform")).toBeVisible();
+  expect(screen.queryByText("Clear line")).not.toBeInTheDocument();
   expect(screen.getByAltText("Current logo piece")).toBeVisible();
   await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
 });
