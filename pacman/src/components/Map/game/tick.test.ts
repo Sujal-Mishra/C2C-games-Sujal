@@ -1,34 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DOTS, EXTRA_LIFE_AT, FRIGHT, FRUIT_AT, FRUIT_SPAWN, FRUIT_TICKS, LIVES, MAZE, MAZE_COLS, NEW_GAME, POINTS, advance, cleared, fruitOut, key, moveGhost, released, scatter, step, tick, type Dir, type Ghost } from "./level.ts";
+import { MAZE, key, type Dir } from "./maze.ts";
+import { FRIGHT, scatter } from "./timing.ts";
+import { DOTS, EXTRA_LIFE_AT, FRUIT_AT, FRUIT_SPAWN, FRUIT_TICKS, POINTS, cleared, fruitOut } from "./pickups.ts";
+import { released, type Ghost } from "./ghosts.ts";
+import { LIVES, NEW_GAME } from "./state.ts";
+import { tick } from "./tick.ts";
 
-test("walls block, open tiles pass", () => {
-  assert.equal(step(1, 1, -1, 0), null); // into the top border
-  assert.deepEqual(step(1, 1, 0, 1), { row: 1, col: 2 });
-});
-
-test("tunnel wraps instead of leaving the grid", () => {
-  assert.deepEqual(step(13, 0, 0, -1), { row: 13, col: MAZE_COLS - 1 });
-  assert.deepEqual(step(13, MAZE_COLS - 1, 0, 1), { row: 13, col: 0 });
-});
-
-test("the only ways off the grid are the tunnel mouths", () => {
-  for (let r = 0; r < MAZE.length; r++)
-    for (const c of [0, MAZE_COLS - 1])
-      if (step(r, c, 0, c ? 1 : -1)) assert.equal(r, 13);
-});
-
-test("advance turns when it can, else keeps going, else stops", () => {
-  const right = [0, 1] as const, up = [-1, 0] as const;
-  // (1,1) → up is the border: can't turn, so keep heading right.
-  assert.deepEqual(advance({ row: 1, col: 1 }, up, right), { pos: { row: 1, col: 2 }, dir: right });
-  // (4,1) → up is open: turn and take it.
-  assert.deepEqual(advance({ row: 4, col: 1 }, up, right), { pos: { row: 3, col: 1 }, dir: up });
-  // (1,12) → right is a wall and so is up: stay put, still facing right.
-  assert.deepEqual(advance({ row: 1, col: 12 }, up, right), { pos: { row: 1, col: 12 }, dir: right });
-});
-
-test("tick eats the dot it lands on; the grape shows at each FRUIT_AT trigger, is taken on contact or leaves after 9s", () => {
+test("tick eats the dot it lands on; the cherry shows at each FRUIT_AT trigger, is taken on contact or leaves after 9s", () => {
   const dots = (n: number) => new Set(Array.from({ length: n }, (_, i) => `dot${i}`));
   // Eat (1,2) from (1,1) with `n` fake dots already gone, so the dot count lands exactly on n + 1.
   const eat = (g: typeof NEW_GAME, n: number) => tick({ ...g, pos: { row: 1, col: 1 }, eaten: dots(n) }, [0, 1]);
@@ -44,13 +23,13 @@ test("tick eats the dot it lands on; the grape shows at each FRUIT_AT trigger, i
   assert.equal(tick(g, [0, 1]).score, g.score, "an eaten dot scores nothing");
 
   g = eat({ ...g, score: 0 }, FRUIT_AT[0] - 1);
-  assert.equal(fruitOut(g), true, "70th dot brings the grape out");
+  assert.equal(fruitOut(g), true, "70th dot brings the cherry out");
   assert.equal(g.fruit, FRUIT_TICKS);
   g = grab(g);
   assert.deepEqual(g.pos, FRUIT_SPAWN);
   assert.equal(g.fruits, 1);
-  assert.equal(g.score, POINTS.pellet + POINTS.grape + POINTS.pellet, "grape plus the dot under it");
-  assert.equal(fruitOut(g), false, "second grape waits for the next trigger");
+  assert.equal(g.score, POINTS.pellet + POINTS.cherry + POINTS.pellet, "cherry plus the dot under it");
+  assert.equal(fruitOut(g), false, "second cherry waits for the next trigger");
 
   g = eat(g, FRUIT_AT[1] - 1);
   assert.equal(fruitOut(g), true);
@@ -59,7 +38,7 @@ test("tick eats the dot it lands on; the grape shows at each FRUIT_AT trigger, i
   g = tick(g, [0, 0]);
   assert.equal(fruitOut(g), false, "gone after 9s");
   assert.equal(g.fruits, 2);
-  assert.equal(grab(g).score, g.score + POINTS.pellet, "nothing to grab; no third grape");
+  assert.equal(grab(g).score, g.score + POINTS.pellet, "nothing to grab; no third cherry");
 });
 
 test("4s without a dot lets the next ghost out of the house", () => {
@@ -81,38 +60,6 @@ test("eating the last dot completes the game and freezes it", () => {
   assert.equal(cleared(g), true);
   assert.equal(g.lives, LIVES);
   assert.equal(tick(g, [0, 1]), g);
-});
-
-test("pac-man can't enter the ghost house", () => {
-  assert.equal(step(11, 11, 0, 1), null);
-});
-
-test("scatter/chase follows the level-1 schedule", () => {
-  assert.equal(scatter(0), true);
-  assert.equal(scatter(34), true);
-  assert.equal(scatter(35), false);
-  assert.equal(scatter(135), true);
-  assert.equal(scatter(1e6), false, "chase forever at the end");
-});
-
-test("ghost picks the closest open tile and never reverses", () => {
-  // (1,1): up/left are walls; right (1,2) is closer to (1,5) than down (2,1).
-  const g = moveGhost({ pos: { row: 1, col: 1 }, dir: [0, 0], out: true, trail: [], mode: "normal" }, { row: 1, col: 5 });
-  assert.deepEqual(g.pos, { row: 1, col: 2 });
-  // heading right at (1,2) with the target behind: reverse is banned, so keep going right.
-  const h = moveGhost(g, { row: 1, col: 0 });
-  assert.deepEqual(h.pos, { row: 1, col: 3 });
-});
-
-test("a ghost circling a 2x2 block breaks out via its trail", () => {
-  // Scatter target top-right from the 2-wide corridor left of the house: pure greedy loops here.
-  let g: Ghost = { pos: { row: 11, col: 11 }, dir: [0, -1], out: true, trail: [], mode: "normal" };
-  const seen = new Set<string>();
-  for (let i = 0; i < 12; i++) {
-    g = moveGhost(g, { row: 0, col: 26 });
-    seen.add(`${g.pos.row},${g.pos.col}`);
-  }
-  assert.ok(seen.size > 4, `stuck on ${[...seen].join(" ")}`);
 });
 
 test("ghosts leave the house in release order and stay off walls", () => {
@@ -175,6 +122,16 @@ test("an unfrightened ghost on Pac-Man's tile costs a life and resets the board,
   g = tick({ ...start, lives: 1 }, [0, 1]);
   assert.equal(g.lives, 0);
   assert.equal(tick(g, [0, 1]), g, "game over: frozen");
+});
+
+test("passing straight through an unfrightened ghost still costs a life", () => {
+  // Blinky at (1,2) already heading left, Pac-Man at (1,1) heading right: both keep going and swap
+  // tiles instead of ever sharing one, so only the before/after positions catch the meeting.
+  const blinky: Ghost = { pos: { row: 1, col: 2 }, dir: [0, -1], out: true, trail: [], mode: "normal" };
+  const start = { ...NEW_GAME, pos: { row: 1, col: 1 }, ghosts: [blinky, ...NEW_GAME.ghosts.slice(1)] };
+  const g = tick(start, [0, 1]);
+  assert.equal(g.lives, LIVES - 1, "the swap still counts as a catch");
+  assert.deepEqual(g.pos, NEW_GAME.pos, "reset on the swap-through death");
 });
 
 test("one extra life at 10,000 points", () => {

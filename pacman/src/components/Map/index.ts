@@ -1,4 +1,5 @@
-export { default as Map } from "./Map";
+/** Public surface of this game, stable for embedding elsewhere: the <Map /> component plus the pure rules it's built on. */
+export { default as Map } from "./Map.tsx";
 export {
   CELL,
   MAZE,
@@ -31,5 +32,5 @@ export {
   TICK_MS,
   NEW_GAME,
   PACMAN_SPAWN,
-} from "./level";
-export type { CellCode, Dir, Game, Ghost, Tile } from "./level";
+} from "./game/index.ts";
+export type { CellCode, Dir, Game, Ghost, Tile } from "./game/index.ts";
