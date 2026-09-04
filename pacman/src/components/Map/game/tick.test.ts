@@ -34,8 +34,8 @@ test("tick eats the dot it lands on; the cherry shows at each FRUIT_AT trigger, 
   assert.equal(g.score, POINTS.pellet);
   assert.equal(fruitOut(g), false);
   assert.equal(tick(primed({ ...g, pos: { row: 1, col: 2 }, dir: [0, 1] }), [0, 1]).score, g.score, "an eaten dot scores nothing");
-  // Onto the power pellet at (1,2), approached head-on from (1,3) — a mid-corridor 180 is refused.
-  g = tick(primed({ ...g, pos: { row: 1, col: 3 }, dir: [0, -1] }), [0, -1]);
+  // Back onto the power pellet at (1,2): a 180 out of a rightward run is taken.
+  g = tick(primed({ ...g, pos: { row: 1, col: 3 }, dir: [0, 1] }), [0, -1]);
   assert.equal(g.score, POINTS.pellet + POINTS.power);
 
   g = eat({ ...g, score: 0 }, FRUIT_AT[0] - 1);
