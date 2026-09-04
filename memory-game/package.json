@@ -1,0 +1,8 @@
+{
+  "name": "c2c-cherry-memory-game",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

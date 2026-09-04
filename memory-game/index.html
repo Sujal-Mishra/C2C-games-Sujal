@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A memory game for C2C." />
+    <title>C2C Memory Game</title>
+    <link rel="icon" href="assets/C2C-Logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="petal-field" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <header class="site-header">
+      <a
+        class="brand"
+        href="https://c2c.sh/"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Visit the C2C website"
+      >
+        <img src="assets/C2C-Logo.svg" alt="" width="52" height="57" />
+        <strong>C2C</strong>
+      </a>
+
+      <div class="music-player" aria-label="Background music player">
+        <button class="music-toggle" id="music-toggle" type="button" aria-label="Play background music">Play</button>
+        <div class="waveform-wrap">
+          <div class="waveform" id="waveform" aria-hidden="true"></div>
+          <input id="music-seek" class="music-seek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Seek background music" />
+        </div>
+      </div>
+
+      <button class="new-game-button" id="new-game" type="button">New game</button>
+    </header>
+
+    <main class="game-layout" aria-label="C2C memory game">
+      <h1 class="sr-only">C2C memory game</h1>
+      <dl class="scoreboard" aria-label="Game progress">
+        <div class="score-primary"><dt>Pairs</dt><dd><span id="pairs">0</span><span aria-hidden="true">/12</span></dd></div>
+        <div><dt>Moves</dt><dd id="moves">0</dd></div>
+        <div><dt>Time</dt><dd id="timer">00:00</dd></div>
+        <div><dt>Best</dt><dd id="best-score">—</dd></div>
+      </dl>
+
+      <section class="board-shell" aria-label="Memory game">
+        <div class="game-board" id="game-board" role="grid" aria-label="Five by five memory card grid" aria-rowcount="5" aria-colcount="5"></div>
+      </section>
+      <p class="sr-only" id="game-status" aria-live="polite"></p>
+    </main>
+
+    <dialog class="completion-dialog" id="completion-dialog">
+      <div class="dialog-art" aria-hidden="true"><img src="assets/Coral.png" alt="" width="96" height="97" /></div>
+      <p class="dialog-kicker">All pairs found</p>
+      <h2>Beautiful memory.</h2>
+      <p class="dialog-result">You finished in <strong id="final-moves">0 moves</strong> and <strong id="final-time">00:00</strong>.</p>
+      <p class="new-best-note" id="new-best-note" hidden>New personal best.</p>
+      <div class="dialog-actions">
+        <button id="play-again" class="primary-button" type="button">Play again</button>
+        <button id="close-dialog" class="secondary-button" type="button">View board</button>
+      </div>
+    </dialog>
+
+    <audio id="background-music" src="assets/cherry-blossom-ambience.mp3" preload="auto" autoplay loop></audio>
+    <script type="module" src="game.js"></script>
+  </body>
+</html>
