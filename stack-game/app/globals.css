@@ -162,23 +162,10 @@ output { font: inherit; }
   animation: life-petal-poof var(--petal-duration, 650ms) cubic-bezier(.2,.75,.25,1) var(--petal-delay, 0ms) forwards;
 }
 
-.life-petal-poof i:nth-child(1) { --poof-x: 52px; --poof-y: -3px; --petal-w: 8px; --petal-h: 5px; rotate: 8deg; }
-.life-petal-poof i:nth-child(2) { --poof-x: 43px; --poof-y: 28px; --petal-w: 5px; --petal-h: 3px; --petal-delay: 22ms; rotate: 38deg; }
-.life-petal-poof i:nth-child(3) { --poof-x: 20px; --poof-y: 46px; --petal-w: 9px; --petal-h: 5px; --petal-duration: 610ms; rotate: 72deg; }
-.life-petal-poof i:nth-child(4) { --poof-x: -5px; --poof-y: 53px; --petal-w: 6px; --petal-h: 4px; --petal-delay: 35ms; rotate: 101deg; }
-.life-petal-poof i:nth-child(5) { --poof-x: -31px; --poof-y: 40px; --petal-w: 10px; --petal-h: 6px; rotate: 132deg; }
-.life-petal-poof i:nth-child(6) { --poof-x: -48px; --poof-y: 20px; --petal-w: 5px; --petal-h: 4px; --petal-duration: 690ms; rotate: 158deg; }
-.life-petal-poof i:nth-child(7) { --poof-x: -54px; --poof-y: -7px; --petal-w: 8px; --petal-h: 4px; --petal-delay: 18ms; rotate: 188deg; }
-.life-petal-poof i:nth-child(8) { --poof-x: -39px; --poof-y: -34px; --petal-w: 6px; --petal-h: 3px; rotate: 221deg; }
-.life-petal-poof i:nth-child(9) { --poof-x: -17px; --poof-y: -49px; --petal-w: 9px; --petal-h: 6px; --petal-duration: 625ms; rotate: 252deg; }
-.life-petal-poof i:nth-child(10) { --poof-x: 9px; --poof-y: -51px; --petal-w: 5px; --petal-h: 3px; --petal-delay: 28ms; rotate: 281deg; }
-.life-petal-poof i:nth-child(11) { --poof-x: 34px; --poof-y: -41px; --petal-w: 8px; --petal-h: 5px; rotate: 313deg; }
-.life-petal-poof i:nth-child(12) { --poof-x: 49px; --poof-y: -21px; --petal-w: 6px; --petal-h: 4px; --petal-duration: 680ms; rotate: 337deg; }
-
 @keyframes life-petal-poof {
   0% { opacity: 1; transform: translate(-50%, -50%) scale(.7); }
   65% { opacity: .9; }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--poof-x)), calc(-50% + var(--poof-y))) rotate(140deg) scale(1.1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--poof-x)), calc(-50% + var(--poof-y))) rotate(var(--petal-spin, 180deg)) scale(1.1); }
 }
 
 .life-pip.is-active {
@@ -358,7 +345,6 @@ output { font: inherit; }
 .pixel-game-over {
   margin: 0;
   color: #fff1f8;
-  font-family: "Courier New", ui-monospace, monospace;
   font-size: clamp(2.25rem, 8vw, 4rem);
   font-weight: 900;
   line-height: 1;
@@ -366,7 +352,9 @@ output { font: inherit; }
   text-transform: uppercase;
   text-shadow: 4px 0 #f14fa4, 0 4px #9f315f, 4px 4px #511329;
 }
+.pixel-font { font-family: "Courier New", ui-monospace, monospace; font-variant-ligatures: none; }
 .final-score { margin: 22px 0 0; color: var(--sakura-bright); font-size: 1.25rem; }
+.final-score--high-contrast { color: #fff8fb; font-weight: 700; text-shadow: 0 2px 0 #57132f, 0 0 9px rgba(70, 13, 39, .8); }
 .menu-topline { display: flex; align-items: center; justify-content: space-between; }
 
 .game-menu h2 {

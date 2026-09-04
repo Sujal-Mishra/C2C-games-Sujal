@@ -88,11 +88,13 @@ test("starts behind Play, then opens instructions and continues into gameplay", 
   expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
 });
 
-test("a lost life poofs into individual petals before the next world starts", async () => {
+test("a lost life poofs into individual, varied petals before the next world starts", async () => {
   vi.useFakeTimers();
   render(<LogoStackGame />);
   fireEvent.click(screen.getByRole("button", { name: /lose test piece/i }));
-  expect(document.querySelectorAll(".life-petal-poof i")).toHaveLength(12);
+  const petals = Array.from(document.querySelectorAll<HTMLElement>(".life-petal-poof i"));
+  expect(petals).toHaveLength(16);
+  expect(new Set(petals.map((petal) => petal.getAttribute("style"))).size).toBeGreaterThan(12);
   expect(screen.getByTestId("canvas-paused")).toHaveTextContent("true");
   expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("0");
   await act(() => vi.advanceTimersByTimeAsync(650));
