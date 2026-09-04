@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import "@fontsource/do-hyeon/latin-400.css";
+import "@fontsource/poppins/latin-400.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
