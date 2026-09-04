@@ -214,7 +214,47 @@ output { font: inherit; }
   display: block;
   height: auto;
   transform-origin: center;
+  will-change: left, top, transform;
   filter: drop-shadow(0 7px 8px rgba(231, 131, 173, .13));
+}
+
+.lock-effects {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.lock-flash {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 229, 167, .9);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 249, 217, .95) 0 9%, rgba(255, 198, 130, .38) 25%, transparent 67%);
+  box-shadow: 0 0 10px 4px rgba(255, 185, 124, .25);
+  transform: translate(-50%, -50%) scale(.35);
+  animation: lock-light 520ms cubic-bezier(.16,.78,.2,1) forwards;
+}
+
+.lock-flash::before,
+.lock-flash::after {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 2px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(transparent, rgba(255, 244, 198, .95), transparent);
+  content: "";
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.lock-flash::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+@keyframes lock-light {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.2); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.2); }
 }
 
 .platform-visual {
@@ -440,6 +480,7 @@ output { font: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .lock-flash { animation-duration: 80ms; }
   .ambient-petals { display: none; }
   .life-pip { transition: none; }
   .life-petal-poof i { animation-duration: 80ms; animation-name: life-petal-fade; }
