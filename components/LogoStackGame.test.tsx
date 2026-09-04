@@ -60,6 +60,8 @@ test("shows only the playfield with score and two lives at its side", () => {
   expect(screen.queryByText(/next object/i)).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^drop$|^rotate$|open menu/i })).not.toBeInTheDocument();
   expect(screen.queryByText(/desktop:|phone:/i)).not.toBeInTheDocument();
+  expect(document.querySelector(".tree-background")).not.toBeInTheDocument();
+  expect(document.querySelectorAll(".ambient-petals i")).toHaveLength(12);
 });
 
 test("each locked component awards exactly 100 points", async () => {

@@ -110,7 +110,7 @@ export function LogoStackGame() {
     const ctx = gsap.context(() => {
       gsap.set(petals, { y: -40, x: 0, opacity: 0, rotation: 0 });
       petals.forEach((petal, index) => {
-        gsap.to(petal, { y: "105vh", x: `random(-90, 90)`, rotation: `random(-240, 240)`, opacity: `random(.25, .85)`, duration: `random(7, 13)`, delay: index * .35, repeat: -1, ease: "none" });
+        gsap.to(petal, { y: "105vh", x: `random(-42, 42)`, rotation: `random(-180, 180)`, opacity: `random(.12, .32)`, duration: `random(10, 16)`, delay: index * .7, repeat: -1, ease: "none" });
       });
     }, petalsRef);
     return () => ctx.revert();
@@ -143,29 +143,31 @@ export function LogoStackGame() {
 
   return (
     <main className="game-page">
-      <div className="tree-background" aria-hidden="true"><img src="/assets/cherry-blossom.svg" alt="" /></div>
-      <div ref={petalsRef} className="ambient-petals" aria-hidden="true">{Array.from({ length: 22 }, (_, index) => <i key={index} />)}</div>
+      <div ref={petalsRef} className="ambient-petals" aria-hidden="true">
+        {Array.from({ length: 12 }, (_, index) => (
+          <i key={index} style={{ left: `${8 + ((index * 37) % 84)}%` }} />
+        ))}
+      </div>
       <section className="game-layout" id="game">
         <div className="game-stage">
-        <div className="game-board-wrap">
-          <div className="canvas-frame">
-            <GameCanvas
-              ref={canvasRef}
-              currentShape={currentShape}
-              rotation={rotation}
-              runId={runId}
-              pieceId={pieceId}
-              paused={menuOpen || ended}
-              onLocked={handleLocked}
-              onPieceMissed={handlePieceMissed}
-              onGameOver={handleGameOver}
-              onPhaseChange={setPhase}
-            />
+          <div className="game-board-wrap">
+            <div className="canvas-frame">
+              <GameCanvas
+                ref={canvasRef}
+                currentShape={currentShape}
+                rotation={rotation}
+                runId={runId}
+                pieceId={pieceId}
+                paused={menuOpen || ended}
+                onLocked={handleLocked}
+                onPieceMissed={handlePieceMissed}
+                onGameOver={handleGameOver}
+                onPhaseChange={setPhase}
+              />
+            </div>
+            <GameHud score={score} lives={lives} />
           </div>
-          <GameHud score={score} lives={lives} />
         </div>
-        </div>
-
       </section>
 
       {menuOpen && <GameMenu onClose={() => setMenuOpen(false)} onRetry={restart} />}

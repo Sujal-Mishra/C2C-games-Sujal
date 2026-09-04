@@ -18,12 +18,12 @@ The project will remain a focused single-page game without accounts, networking,
 
 The design follows the supplied Code2Create reference:
 
-- Deep burgundy and near-black background tones
-- Cherry-blossom pink accents and pale pink borders
-- White display typography with restrained uppercase labels
-- Dark green landscape silhouettes beneath the play area
-- Lightweight animated petals for depth and atmosphere
-- Soft glows and outlined panels that complement the event identity
+- A centered, true-black game card over a restrained blush-to-plum page background
+- Cherry-blossom pink accents used sparingly for borders, values, and the platform
+- Do Hyeon display typography in off-white with normal weight and line height
+- Unboxed score and life information beside the playfield
+- A small number of low-opacity animated petals for atmosphere, without tree artwork
+- Soft shadows and subtle pink outlines that keep the interface minimal
 
 The game objects will be a circle, a square initially presented at a diamond angle, and a hexagon. Each piece will use a distinct pink shade and clear internal detailing so its rotation remains readable.
 
