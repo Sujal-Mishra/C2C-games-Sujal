@@ -1,4 +1,5 @@
 :root {
+  --viewport-gap: clamp(8px, 2vmin, 22px);
   --page-light: #f9edf2;
   --page-pink: #edcfdd;
   --page-plum: #9a496e;
@@ -36,11 +37,13 @@ output { font: inherit; }
 .game-page {
   position: relative;
   isolation: isolate;
-  min-height: 100svh;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
-  padding: clamp(18px, 4vw, 52px);
+  padding: var(--viewport-gap);
   background:
     radial-gradient(circle at 14% 15%, rgba(255, 255, 255, .76), transparent 25%),
     radial-gradient(circle at 88% 82%, rgba(151, 65, 105, .34), transparent 32%),
@@ -50,7 +53,8 @@ output { font: inherit; }
 .game-layout {
   position: relative;
   z-index: 2;
-  width: min(1120px, 100%);
+  width: min(1120px, 100%, calc(155dvh - 30px));
+  max-height: calc(100dvh - var(--viewport-gap) - var(--viewport-gap));
 }
 
 .game-stage { width: 100%; }
@@ -124,11 +128,11 @@ output { font: inherit; }
 .canvas-frame {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 142px;
+  grid-template-columns: minmax(0, 1fr) clamp(96px, 11vw, 142px);
   align-items: stretch;
-  gap: clamp(18px, 2.4vw, 30px);
+  gap: clamp(12px, 2vmin, 24px);
   overflow: hidden;
-  padding: clamp(16px, 2.4vw, 28px);
+  padding: clamp(10px, 2vmin, 22px);
   border: 2px solid var(--outline);
   border-radius: 26px;
   background: var(--playfield-black);
@@ -138,7 +142,7 @@ output { font: inherit; }
 .game-canvas-shell {
   position: relative;
   width: 100%;
-  min-height: 420px;
+  min-height: 0;
   aspect-ratio: 900 / 650;
   overflow: hidden;
   border-radius: 16px;
@@ -291,8 +295,13 @@ output { font: inherit; }
 
   .game-page {
     place-items: center;
-    overflow-y: auto;
+    overflow: hidden;
     padding: 12px;
+  }
+
+  .game-layout {
+    width: min(100%, calc(75dvh + 94px));
+    max-height: calc(100dvh - 24px);
   }
 
   .game-board-wrap {
@@ -307,7 +316,7 @@ output { font: inherit; }
     border-radius: 18px;
   }
 
-  .game-canvas-shell { min-height: 430px; aspect-ratio: 3 / 4; }
+  .game-canvas-shell { min-height: 0; aspect-ratio: 3 / 4; }
 
   .game-status {
     gap: 34px;
@@ -320,4 +329,24 @@ output { font: inherit; }
 
   .life-pips { gap: 5px; margin-top: 9px; }
   .life-pip { width: 15px; height: 15px; }
+}
+
+@media (max-width: 650px) and (orientation: landscape) {
+  .game-layout { width: min(100%, calc(155dvh - 24px)); }
+  .game-canvas-shell { aspect-ratio: 900 / 650; }
+}
+
+@media (max-height: 600px) {
+  .canvas-frame {
+    grid-template-columns: minmax(0, 1fr) clamp(80px, 10vw, 112px);
+    gap: 10px;
+    padding: 8px;
+  }
+
+  .game-status { gap: 18px; padding: 8px 0; }
+  .hud-label { font-size: .78rem; }
+  .score-value,
+  .lives-value { margin-top: 3px; font-size: 1.55rem; }
+  .life-pips { gap: 4px; margin-top: 5px; }
+  .life-pip { width: 12px; height: 12px; }
 }
