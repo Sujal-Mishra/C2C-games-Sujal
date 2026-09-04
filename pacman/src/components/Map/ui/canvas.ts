@@ -3,9 +3,9 @@ import { CELL, MAZE, TELEPORTS, isWall } from "../game/index.ts";
 /** Canvas pixels per tile; drawn oversize and downscaled so the curves stay smooth. */
 export const PX = 32;
 /** Same hue as the sprites but a ramp below their darkest tone, so Pac-Man and the ghosts stay legible against the walls. */
-const WALL_BASE = "#9B3160";
-const WALL_LIGHT = "#D46C8C";
-const WALL_DARK = "#551B35";
+const WALL_BASE = "#FB5276";
+const WALL_LIGHT = "#FFB6A3";
+const WALL_DARK = "#FF708F";
 /** Bevel thickness; open sides get a light (top/left) or dark (bottom/right) chamfer. */
 const BEVEL = Math.round(PX * 0.28);
 

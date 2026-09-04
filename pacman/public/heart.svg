@@ -1,14 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" width="36" height="36" shape-rendering="crispEdges">
-  <title>Heart</title>
-  <!-- 9x8 pixel heart, the arcade sheet has none. Drawn on the 12x12 fruit grid. -->
-  <g fill="#ff0000">
-  <rect x="2" y="2" width="2" height="1"/><rect x="7" y="2" width="2" height="1"/>
-  <rect x="1" y="3" width="4" height="1"/><rect x="6" y="3" width="4" height="1"/>
-  <rect x="1" y="4" width="9" height="2"/>
-  <rect x="2" y="6" width="7" height="1"/>
-  <rect x="3" y="7" width="5" height="1"/>
-  <rect x="4" y="8" width="3" height="1"/>
-  <rect x="5" y="9" width="1" height="1"/>
-  </g>
-  <rect x="2" y="3" width="1" height="1" fill="#ffb7ae"/>
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 6H6V9H12V6Z" fill="#B13F55"/>
+<path d="M27 6H21V9H27V6Z" fill="#B13F55"/>
+<path d="M15 9H3V12H15V9Z" fill="#B13F55"/>
+<path d="M30 9H18V12H30V9Z" fill="#B13F55"/>
+<path d="M30 12H3V18H30V12Z" fill="#B13F55"/>
+<path d="M27 18H6V21H27V18Z" fill="#B13F55"/>
+<path d="M24 21H9V24H24V21Z" fill="#B13F55"/>
+<path d="M21 24H12V27H21V24Z" fill="#B13F55"/>
+<path d="M18 27H15V30H18V27Z" fill="#B13F55"/>
+<path d="M9 9H6V12H9V9Z" fill="#FCA3CB"/>
 </svg>
