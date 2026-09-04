@@ -346,28 +346,30 @@ output { font: inherit; }
   margin: 0;
   display: grid;
   justify-items: center;
-  color: #ffd4e6;
+  color: #4b112a;
   font-size: clamp(3rem, 10vw, 5rem);
   font-weight: 900;
   line-height: .72;
   letter-spacing: -.1em;
   text-transform: uppercase;
-  -webkit-text-stroke: 3px #2b091a;
-  paint-order: stroke fill;
-  text-shadow: 0 5px #7e1e48, 0 9px #4a102c, 5px 9px #4a102c;
+  -webkit-text-stroke: 0;
+  paint-order: normal;
 }
 .game-over-wordmark-line {
   display: block;
   min-width: 4.1ch;
   padding: .14em .1em .18em;
-  background: linear-gradient(180deg, #ffe7f0 0%, #ef91b7 46%, #b63c6a 100%);
+  background: transparent;
   clip-path: polygon(0 12%, 8% 12%, 8% 0, 26% 0, 26% 9%, 74% 9%, 74% 0, 92% 0, 92% 12%, 100% 12%, 100% 88%, 92% 88%, 92% 100%, 8% 100%, 8% 88%, 0 88%);
-  filter: drop-shadow(0 5px 0 #51112f);
+  filter: none;
 }
 .game-over-wordmark-line--lower { margin-top: .1em; transform: translateX(.08em); }
 .pixel-font { font-family: "Courier New", ui-monospace, monospace; font-variant-ligatures: none; }
-.final-score { margin: 22px 0 0; color: var(--sakura-bright); font-size: 1.25rem; }
-.final-score--high-contrast { color: #fff8fb; font-weight: 700; text-shadow: 0 2px 0 #57132f, 0 0 9px rgba(70, 13, 39, .8); }
+.final-score { margin: 22px 0 0; font-size: 1.25rem; }
+.etched-wood-text {
+  color: #4b112a;
+  text-shadow: 0 1px #f6b8cd, 0 -1px #250615;
+}
 .menu-topline { display: flex; align-items: center; justify-content: space-between; }
 
 .game-menu h2 {
@@ -388,8 +390,7 @@ output { font: inherit; }
 
 .wood-board strong,
 .wood-board h2,
-.wood-board .final-score,
-.wood-board .pixel-game-over {
+.wood-board .etched-wood-text {
   text-shadow: 0 1px rgba(255, 224, 235, .82), 0 -1px rgba(82, 17, 44, .38);
 }
 
