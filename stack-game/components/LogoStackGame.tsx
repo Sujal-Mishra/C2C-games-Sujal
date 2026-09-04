@@ -6,6 +6,7 @@ import { GameCanvas, type GameCanvasHandle } from "./GameCanvas";
 import { GameHud } from "./GameHud";
 import { GameMenu } from "./GameMenu";
 import { GameOverOverlay } from "./GameOverOverlay";
+import { useGameAudio } from "./useGameAudio";
 import {
   AIM_MOVE_STEP,
   drawShapeFromBag,
@@ -18,6 +19,7 @@ import { createLocalScoreStore, updateBestScore } from "@/game/scoreStore";
 import type { GamePhase, QuarterTurn, ShapeType } from "@/game/types";
 
 export function LogoStackGame() {
+  const audio = useGameAudio();
   const canvasRef = useRef<GameCanvasHandle>(null);
   const petalsRef = useRef<HTMLDivElement>(null);
   const scoreStoreRef = useRef(createLocalScoreStore());
@@ -52,9 +54,10 @@ export function LogoStackGame() {
 
   const drop = useCallback(() => {
     if (phase !== "aiming") return;
+    audio.playDrop();
     canvasRef.current?.drop();
     setPhase("falling");
-  }, [phase]);
+  }, [audio, phase]);
 
   const startNextPiece = useCallback(() => {
     setCurrentShape(nextShape);
@@ -65,13 +68,14 @@ export function LogoStackGame() {
   }, [drawNextShape, nextShape]);
 
   const handleLocked = useCallback(() => {
+    audio.playLock();
     setScore((value) => {
       const nextScore = value + POINTS_PER_PIECE;
       setBestScore((best) => updateBestScore(nextScore, best, scoreStoreRef.current));
       return nextScore;
     });
     startNextPiece();
-  }, [startNextPiece]);
+  }, [audio, startNextPiece]);
 
   const startFreshLife = useCallback(() => {
     setScore(0);
@@ -84,19 +88,21 @@ export function LogoStackGame() {
   }, []);
 
   const handlePieceMissed = useCallback(() => {
+    audio.playLifeLost();
     const remainingLives = loseLife(livesRef.current);
     livesRef.current = remainingLives;
     setLives(remainingLives);
     setLostLifeIndex(remainingLives);
     return true;
-  }, [drawNextShape]);
+  }, [audio, drawNextShape]);
 
   const endGame = useCallback(() => {
+    audio.stopMusic();
     setMenuOpen(false);
     setLostLifeIndex(null);
     setEnded(true);
     setPhase("gameOver");
-  }, []);
+  }, [audio]);
 
   const handleGameOver = useCallback(() => endGame(), [endGame]);
 
@@ -191,7 +197,7 @@ export function LogoStackGame() {
       {menuOpen && (
         <GameMenu
           onClose={() => { setMenuOpen(false); if (!hasStarted) setIntroOpen(true); }}
-          onContinue={() => { setHasStarted(true); setIntroOpen(false); setMenuOpen(false); }}
+          onContinue={() => { audio.startMusic(); setHasStarted(true); setIntroOpen(false); setMenuOpen(false); }}
         />
       )}
       {ended && (
