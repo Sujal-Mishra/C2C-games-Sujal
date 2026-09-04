@@ -55,7 +55,9 @@ test("shows only the playfield with score and two lives at its side", () => {
 
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
   expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
-  expect(screen.getByRole("complementary", { name: /game status/i })).toBeVisible();
+  const gameStatus = screen.getByRole("complementary", { name: /game status/i });
+  expect(gameStatus).toBeVisible();
+  expect(gameStatus.closest(".canvas-frame")).not.toBeNull();
   expect(screen.queryByLabelText("Best score")).not.toBeInTheDocument();
   expect(screen.queryByText(/next object/i)).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /^drop$|^rotate$|open menu/i })).not.toBeInTheDocument();

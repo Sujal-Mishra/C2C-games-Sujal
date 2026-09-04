@@ -164,8 +164,8 @@ export function LogoStackGame() {
                 onGameOver={handleGameOver}
                 onPhaseChange={setPhase}
               />
+              <GameHud score={score} lives={lives} />
             </div>
-            <GameHud score={score} lives={lives} />
           </div>
         </div>
       </section>

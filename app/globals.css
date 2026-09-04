@@ -56,12 +56,7 @@ output { font: inherit; }
 .game-stage { width: 100%; }
 
 .game-board-wrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 142px;
-  align-items: stretch;
-  gap: clamp(18px, 2.4vw, 30px);
-  padding: clamp(16px, 2.4vw, 28px);
-  border: 1px solid var(--outline);
+  overflow: hidden;
   border-radius: 26px;
   background: var(--game-black);
   box-shadow:
@@ -128,9 +123,14 @@ output { font: inherit; }
 
 .canvas-frame {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 142px;
+  align-items: stretch;
+  gap: clamp(18px, 2.4vw, 30px);
   overflow: hidden;
-  border: 1px solid rgba(231, 131, 173, .48);
-  border-radius: 17px;
+  padding: clamp(16px, 2.4vw, 28px);
+  border: 2px solid var(--outline);
+  border-radius: 26px;
   background: var(--playfield-black);
   box-shadow: inset 0 0 70px rgba(179, 70, 118, .07);
 }
@@ -140,6 +140,9 @@ output { font: inherit; }
   width: 100%;
   min-height: 420px;
   aspect-ratio: 900 / 650;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--playfield-black);
   cursor: default;
   touch-action: none;
 }
@@ -293,14 +296,17 @@ output { font: inherit; }
   }
 
   .game-board-wrap {
-    grid-template-columns: minmax(0, 1fr) 82px;
-    gap: 10px;
-    padding: 10px;
     border-radius: 18px;
     box-shadow: 0 20px 50px rgba(71, 20, 44, .25);
   }
 
-  .canvas-frame { border-radius: 12px; }
+  .canvas-frame {
+    grid-template-columns: minmax(0, 1fr) 82px;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
   .game-canvas-shell { min-height: 430px; aspect-ratio: 3 / 4; }
 
   .game-status {
