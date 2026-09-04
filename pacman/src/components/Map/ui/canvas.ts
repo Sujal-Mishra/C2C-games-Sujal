@@ -72,7 +72,7 @@ function drawWall(ctx: CanvasRenderingContext2D, row: number, col: number) {
  * One colour per teleport pair, so a mouth tells you which other mouth it leads to.
  * Chosen away from the wall pinks and the ghost colours; cycled if a map adds more pairs.
  */
-const PORTAL = ["#8A5BFF", "#3FC5FF", "#4BE08A"];
+const PORTAL = ["#8A5BFF", "#3FC5FF", "#FFD23F"];
 
 /** `"row,col"` of every teleport mouth -> the colour of the pair it belongs to. */
 const PORTAL_AT = new Map(
@@ -81,27 +81,44 @@ const PORTAL_AT = new Map(
   ),
 );
 
+/** `#rrggbb` mixed towards black (`f < 1`) or white (`f > 1`), clamped. */
+function shade(color: string, f: number): string {
+  const n = parseInt(color.slice(1), 16);
+  const c = (shift: number) => {
+    const v = (n >> shift) & 0xff;
+    return Math.round(f <= 1 ? v * f : v + (255 - v) * (f - 1));
+  };
+  return `rgb(${c(16)} ${c(8)} ${c(0)})`;
+}
+
 /**
- * A teleport mouth: two concentric rings over a dark disc, so it reads as a portal
- * against the black corridor and never gets mistaken for a pellet.
+ * A teleport mouth: a glowing ring lying flat in the corridor, like a hole cut
+ * through the floor — a squashed ellipse over a dark well, with the stroke laid
+ * down three times at shrinking blur so it blooms outwards and keeps a bright core.
  */
 function drawPortal(ctx: CanvasRenderingContext2D, row: number, col: number, color: string) {
   const cx = col * PX + PX / 2, cy = row * PX + PX / 2;
-  const ring = (r: number, width: number, style: string) => {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
-    ctx.lineWidth = width;
-    ctx.strokeStyle = style;
-    ctx.stroke();
-  };
+  const rx = PX * 0.38, ry = PX * 0.23;
 
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(cx, cy, PX * 0.42, 0, 2 * Math.PI);
-  ctx.fillStyle = "#1A0A12";
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+  ctx.fillStyle = shade(color, 0.1); // near-black well, so the ring reads as a band not a disc
   ctx.fill();
 
-  ring(PX * 0.36, PX * 0.1, color);
-  ring(PX * 0.19, PX * 0.07, color);
+  ctx.shadowColor = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = PX * 0.11;
+  for (const blur of [PX * 0.9, PX * 0.45, PX * 0.2]) {
+    ctx.shadowBlur = blur;
+    ctx.stroke();
+  }
+  // A pale core inside the band gives the rim its lit edge.
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = PX * 0.045;
+  ctx.strokeStyle = shade(color, 1.55);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** Draws every maze wall once onto a canvas sized `MAZE_COLS x MAZE_ROWS` tiles of `PX` pixels each. */
