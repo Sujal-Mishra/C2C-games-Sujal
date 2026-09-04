@@ -5,7 +5,7 @@ import type { Game } from "./state.ts";
 /**
  * Ghost house: the two 4x2 pockets either side of centre — rows 8-9 (cols 10-13,
  * open to the left via col 9) and rows 11-12 (cols 11-14, open to the right via
- * col 15). GHOST_SPAWN is the single marker tile below them (row 17, col 12).
+ * col 15). GHOST_SPAWN is the single marker tile below them (row 18, col 12).
  */
 export const GHOST_HOUSE: Tile[] = tilesOf(CELL.GHOST_HOUSE);
 export const GHOST_SPAWN: Tile = tilesOf(CELL.GHOST_SPAWN)[0];
@@ -13,12 +13,19 @@ export const GHOST_SPAWN: Tile = tilesOf(CELL.GHOST_SPAWN)[0];
 /**
  * Arcade ghosts. `tile`: start (all inside the house), `door`: the tile they
  * head for to get out, `corner`: scatter target (Blinky TR, Pinky TL, Inky BR, Clyde BL).
+ *
+ * Each pocket holds its pair on one row, on cols 11 and 13: one against the
+ * pocket's closed wall, the other a block further in with a gap between them. Both
+ * pockets use the same two columns, so the four line up as two vertical rows
+ * rather than the diagonal they used to sit in. A pocket's two ghosts must stay in
+ * different columns — a waiting ghost bobs half a tile towards the pocket's other
+ * row, so a shared column would have them drift into each other.
  */
 export const GHOSTS = [
-  { name: "blinky", tile: { row: 8, col: 10 }, door: { row: 8, col: 9 }, corner: { row: 0, col: MAZE_COLS - 1 } },
-  { name: "pinky", tile: { row: 9, col: 12 }, door: { row: 9, col: 9 }, corner: { row: 0, col: 0 } },
+  { name: "blinky", tile: { row: 8, col: 13 }, door: { row: 8, col: 9 }, corner: { row: 0, col: MAZE_COLS - 1 } },
+  { name: "pinky", tile: { row: 8, col: 11 }, door: { row: 8, col: 9 }, corner: { row: 0, col: 0 } },
   { name: "inky", tile: { row: 11, col: 11 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
-  { name: "clyde", tile: { row: 12, col: 14 }, door: { row: 12, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
+  { name: "clyde", tile: { row: 11, col: 13 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
 ];
 
 /**

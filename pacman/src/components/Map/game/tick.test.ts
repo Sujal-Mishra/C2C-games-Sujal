@@ -104,9 +104,12 @@ test("a power pellet frightens the ghosts: reverse, crawl at SPEED.fright, time 
     if (key(g.ghosts[0].pos) !== key(before)) moves++;
     assert.notEqual(MAZE[g.ghosts[0].pos.row][g.ghosts[0].pos.col], CELL.WALL);
   }
-  // It banks rate(SPEED.fright) of a tile per tick, so that's roughly how many tiles it covers.
-  const expected = (FRIGHT.ticks - 1) * rate(SPEED.fright);
-  assert.ok(Math.abs(moves - expected) <= 2, `${moves} moves, expected about ${expected.toFixed(1)}`);
+  // It banks a tile fraction per tick, so the tile count follows from the rate. Which rate
+  // depends on where it wandered: a frightened ghost steers randomly, and any stretch spent
+  // within TUNNEL_REACH of a teleport mouth is slower still, so bound it by both.
+  const ticks = FRIGHT.ticks - 1;
+  const most = ticks * rate(SPEED.fright) + 2, least = ticks * rate(SPEED.tunnel) - 2;
+  assert.ok(moves >= least && moves <= most, `${moves} moves, expected ${least.toFixed(1)}..${most.toFixed(1)}`);
   assert.ok(rate(SPEED.fright) < rate(SPEED.ghost), "frightened is slower than normal");
   assert.equal(g.fright, 1);
   assert.equal(tick(g, [0, 0]).fright, 0);

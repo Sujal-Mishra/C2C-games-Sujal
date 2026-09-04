@@ -62,8 +62,14 @@ test("the hand-placed spawns sit on tiles you can actually stand on", () => {
     assert.equal(MAZE[g.tile.row][g.tile.col], CELL.GHOST_HOUSE, `${g.name} starts in the house`);
     assert.ok(step(g.door.row, g.door.col, 0, 0, true), `${g.name}'s door is open`);
   }
-  // Each start tile needs its own column: waiting ghosts bob half a tile towards the
-  // pocket's other row, so two sharing a column would drift into each other on the board.
-  const cols = GHOSTS.map((g) => g.tile.col);
-  assert.equal(new Set(cols).size, cols.length, `start columns clash: ${cols.join()}`);
+  // Two ghosts in the same pocket need their own columns: a waiting ghost bobs half a
+  // tile towards the pocket's other row, so sharing one would drift them into each
+  // other. Across pockets a shared column is fine, and is what lines the four up.
+  const pockets = new Map<number, number[]>();
+  for (const g of GHOSTS) {
+    const pocket = g.tile.row < 10 ? 0 : 1;
+    pockets.set(pocket, [...(pockets.get(pocket) ?? []), g.tile.col]);
+  }
+  for (const [pocket, cols] of pockets)
+    assert.equal(new Set(cols).size, cols.length, `pocket ${pocket} start columns clash: ${cols.join()}`);
 });

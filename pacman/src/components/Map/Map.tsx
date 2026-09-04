@@ -13,7 +13,6 @@ import {
   cleared,
   fruitOut,
   key,
-  released,
   type Tile,
 } from "./game/index.ts";
 import { setMuted, setVolume, useSounds } from "./ui/audio.ts";
@@ -84,8 +83,9 @@ export default function Map() {
           : game.fright <= FRIGHT.flash && Math.floor(game.t / FLASH) & 1 ? `scared-white-${frame}`
           : `scared-${frame}`;
         const { name } = GHOSTS[i];
-        if (!released(game, i)) {
-          // Waiting in the house: bob half a tile towards the pocket's other row and back, facing the way it goes.
+        if (!gh.out) {
+          // Still in the house: bob half a tile towards the pocket's other row and back, facing the way it goes.
+          // Keyed on `out` rather than release, so the two ghosts released at 0 dots also bob until they actually leave.
           const down = MAZE[gh.pos.row + 1][gh.pos.col] === CELL.GHOST_HOUSE;
           const [go, back] = down ? ["down", "up"] : ["up", "down"];
           const bob = { "--bob": down ? "50%" : "-50%", "--go": `url(/ghosts/${name}-${go}-0.svg)`, "--back": `url(/ghosts/${name}-${back}-1.svg)` };
