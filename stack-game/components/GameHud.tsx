@@ -21,11 +21,12 @@ function petalStyle([x, y, width, height, duration, delay, spin]: typeof PETAL_B
 
 interface GameHudProps {
   score: number;
+  bestScore: number;
   lives: number;
   lostLifeIndex?: number | null;
 }
 
-export function GameHud({ score, lives, lostLifeIndex = null }: GameHudProps) {
+export function GameHud({ score, bestScore, lives, lostLifeIndex = null }: GameHudProps) {
   return (
     <aside className="game-status" aria-label="Game status">
       <div className="status-panel">
@@ -33,7 +34,12 @@ export function GameHud({ score, lives, lostLifeIndex = null }: GameHudProps) {
         <output aria-label="Current score" className="score-value" aria-live="polite">{score}</output>
       </div>
 
-      <div className="status-panel">
+      <div className="status-panel status-panel--best">
+        <span className="hud-label">Best score</span>
+        <output aria-label="Best score" className="best-score-value">{bestScore}</output>
+      </div>
+
+      <div className="status-panel status-panel--lives">
         <span className="hud-label">Lives</span>
         <output aria-label="Lives remaining" className="life-pips" aria-live="polite">
           <span className="visually-hidden">{lives}</span>

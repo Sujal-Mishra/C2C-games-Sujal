@@ -1,6 +1,6 @@
-interface Props { score: number; }
+interface Props { bestScore: number; }
 
-export function GameOverOverlay({ score }: Props) {
+export function GameOverOverlay({ bestScore }: Props) {
   return (
     <div className="overlay-backdrop">
       <section className="game-over-card wood-board" role="dialog" aria-modal="true" aria-label="Game ended">
@@ -8,7 +8,7 @@ export function GameOverOverlay({ score }: Props) {
           <span className="game-over-wordmark-line">Game</span>
           <span className="game-over-wordmark-line game-over-wordmark-line--lower">Over</span>
         </h1>
-        <p className="final-score etched-wood-text" aria-live="polite">Score: {score}</p>
+        <p className="final-score etched-wood-text" aria-live="polite">Best score: {bestScore}</p>
       </section>
     </div>
   );

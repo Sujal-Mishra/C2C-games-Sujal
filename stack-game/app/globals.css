@@ -81,7 +81,7 @@ output { font: inherit; }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: clamp(36px, 5vh, 58px);
+  gap: clamp(28px, 4vh, 48px);
   padding: clamp(18px, 3vw, 30px) 4px;
 }
 
@@ -97,7 +97,7 @@ output { font: inherit; }
 .hud-label {
   max-width: 120px;
   color: var(--ink);
-  font-size: 1rem;
+  font-size: .9rem;
   font-weight: 400;
   line-height: 1.05;
   letter-spacing: normal;
@@ -107,16 +107,30 @@ output { font: inherit; }
 .score-value {
   margin-top: 7px;
   color: var(--sakura-bright);
-  font-size: clamp(2rem, 3.2vw, 2.7rem);
+  font-size: clamp(1.8rem, 3vw, 2.45rem);
   font-weight: 400;
   line-height: 1;
-  text-shadow: 0 0 22px rgba(231, 131, 173, .2);
+  text-shadow: none;
 }
+
+.status-panel--best { padding-left: 0; border-left: 0; }
+
+.best-score-value {
+  display: block;
+  margin-top: 7px;
+  color: var(--sakura-bright);
+  font-size: clamp(1.55rem, 2.55vw, 2.1rem);
+  font-weight: 400;
+  line-height: 1;
+  text-shadow: none;
+}
+
+.status-panel--lives { grid-column: auto; }
 
 .life-pips {
   display: flex;
   gap: 9px;
-  margin-top: 12px;
+  margin-top: 7px;
 }
 
 .visually-hidden {
@@ -517,12 +531,13 @@ output { font: inherit; }
   .game-canvas-shell { min-height: 0; aspect-ratio: 3 / 4; }
 
   .game-status {
-    gap: 34px;
+    gap: 28px;
     padding: 16px 0;
   }
 
-  .hud-label { max-width: 76px; font-size: .82rem; }
-  .score-value { font-size: 1.8rem; }
+  .hud-label { max-width: 76px; font-size: .78rem; }
+  .score-value { font-size: 1.65rem; }
+  .best-score-value { font-size: 1.45rem; }
 
   .life-pips { gap: 5px; margin-top: 9px; }
   .life-pip { width: 15px; height: 15px; }
@@ -549,9 +564,10 @@ output { font: inherit; }
     padding: 8px;
   }
 
-  .game-status { gap: 18px; padding: 8px 0; }
-  .hud-label { font-size: .78rem; }
-  .score-value { margin-top: 3px; font-size: 1.55rem; }
+  .game-status { gap: 16px; padding: 8px 0; }
+  .hud-label { font-size: .72rem; }
+  .score-value { margin-top: 3px; font-size: 1.45rem; }
+  .best-score-value { margin-top: 3px; font-size: 1.25rem; }
   .life-pips { gap: 4px; margin-top: 5px; }
   .life-pip { width: 12px; height: 12px; }
 }
