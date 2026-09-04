@@ -50,11 +50,13 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-test("shows only the playfield with score and two lives at its side", () => {
+test("shows only the playfield with score and three flower lives at its side", () => {
   render(<LogoStackGame />);
 
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("3");
+  expect(document.querySelectorAll(".life-pip")).toHaveLength(3);
+  expect(document.querySelector(".lives-value")).not.toBeInTheDocument();
   const gameStatus = screen.getByRole("complementary", { name: /game status/i });
   expect(gameStatus).toBeVisible();
   expect(gameStatus.closest(".canvas-frame")).not.toBeNull();
@@ -72,7 +74,7 @@ test("each locked component awards exactly 100 points", async () => {
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   expect(screen.getByLabelText("Current score")).toHaveTextContent("100");
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("3");
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   expect(screen.getByLabelText("Current score")).toHaveTextContent("200");
@@ -86,18 +88,20 @@ test("the first miss starts an independent second life with a fresh score and wo
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
 
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("1");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
   expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("1");
   expect(screen.queryByRole("dialog", { name: /game ended/i })).not.toBeInTheDocument();
   expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
   expect(localStorage.getItem("logo-stack-best")).toBe("100");
 });
 
-test("the second miss ends the run and preserves the best score across both lives", async () => {
+test("the third miss ends the run and preserves the best score across all lives", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
+  await user.click(screen.getByRole("button", { name: /settle test piece/i }));
+  await user.click(screen.getByRole("button", { name: /lose test piece/i }));
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
@@ -112,7 +116,7 @@ test("the second miss ends the run and preserves the best score across both live
 
   await user.click(screen.getByRole("button", { name: /^retry$/i }));
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("3");
   expect(localStorage.getItem("logo-stack-best")).toBe("200");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
@@ -138,7 +142,7 @@ test("Retry in the pause menu resets the current run", async () => {
   await user.click(screen.getByRole("button", { name: /^retry$/i }));
 
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("3");
 });
 
 test("keeps the personal best internally without showing it in the game header", async () => {

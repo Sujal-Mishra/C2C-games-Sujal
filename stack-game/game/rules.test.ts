@@ -62,7 +62,8 @@ describe("settling rules", () => {
 });
 
 describe("run lifecycle", () => {
-  test("a run has two lives and cannot drop below zero", () => {
+  test("a run has three lives and cannot drop below zero", () => {
+    expect(loseLife(3)).toBe(2);
     expect(loseLife(2)).toBe(1);
     expect(loseLife(1)).toBe(0);
     expect(loseLife(0)).toBe(0);

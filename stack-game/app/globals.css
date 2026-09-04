@@ -95,8 +95,7 @@ output { font: inherit; }
   text-transform: uppercase;
 }
 
-.score-value,
-.lives-value {
+.score-value {
   margin-top: 7px;
   color: var(--sakura-bright);
   font-size: clamp(2rem, 3.2vw, 2.7rem);
@@ -109,6 +108,17 @@ output { font: inherit; }
   display: flex;
   gap: 9px;
   margin-top: 12px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .life-pip {
@@ -324,8 +334,7 @@ output { font: inherit; }
   }
 
   .hud-label { max-width: 76px; font-size: .82rem; }
-  .score-value,
-  .lives-value { font-size: 1.8rem; }
+  .score-value { font-size: 1.8rem; }
 
   .life-pips { gap: 5px; margin-top: 9px; }
   .life-pip { width: 15px; height: 15px; }
@@ -345,8 +354,7 @@ output { font: inherit; }
 
   .game-status { gap: 18px; padding: 8px 0; }
   .hud-label { font-size: .78rem; }
-  .score-value,
-  .lives-value { margin-top: 3px; font-size: 1.55rem; }
+  .score-value { margin-top: 3px; font-size: 1.55rem; }
   .life-pips { gap: 4px; margin-top: 5px; }
   .life-pip { width: 12px; height: 12px; }
 }

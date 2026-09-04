@@ -31,7 +31,7 @@ test("mouse movement and clicking do not control or drop the piece", async () =>
 
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(piece.style.left).toBe(startingLeft);
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
+  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("3");
 });
 
 test("A, D, and arrow keys move while Space rotates and Enter continuously drops", async () => {

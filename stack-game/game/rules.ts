@@ -4,7 +4,7 @@ export const SETTLE_MS = 1000;
 export const LINEAR_SPEED_LIMIT = 0.18;
 export const ANGULAR_SPEED_LIMIT = 0.02;
 export const POINTS_PER_PIECE = 100;
-export const INITIAL_LIVES = 2;
+export const INITIAL_LIVES = 3;
 export const CAMERA_TRIGGER_RATIO = 0.5;
 export const AIM_MOVE_STEP = 8;
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Create a responsive, endless arcade stacking game inspired by Animal Stack. Players position and rotate branded pieces above a platform, drop them into a physics simulation, and pursue the highest score possible across two lives. Placeholder pieces will initially represent future logos.
+Create a responsive, endless arcade stacking game inspired by Animal Stack. Players position and rotate branded pieces above a platform, drop them into a physics simulation, and pursue the highest score possible across three lives. Placeholder pieces will initially represent future logos.
 
 ## Technology
 
@@ -88,7 +88,7 @@ After `locked`, the controller selects the next randomized piece and returns to 
 
 Each successfully locked piece adds 100 points. No points are granted merely for releasing, contacting, or losing a piece.
 
-Each run starts with two independent lives. If the active piece crosses the lower viewport failure boundary, that life ends. The first miss consumes one life and creates a fresh physics world with an empty platform, a reset camera, and a score of zero. The second miss ends the run. The highest score achieved in either life is retained as the player's personal best in local storage, including across future sessions. Choosing restart creates a fresh world with two lives.
+Each run starts with three independent lives. If the active piece crosses the lower viewport failure boundary, that life ends. The first and second misses each consume one life and create a fresh physics world with an empty platform, a reset camera, and a score of zero. The third miss ends the run. The highest score achieved in any life is retained as the player's personal best in local storage, including across future sessions. Choosing restart creates a fresh world with three lives.
 
 ## Component Boundaries
 
@@ -124,7 +124,7 @@ Automated tests will cover:
 - Sustained low motion locks a piece; renewed motion resets settlement.
 - A locked piece adds exactly 100 points.
 - The first miss consumes one life and resets the score, locked stack, and camera for an independent second life.
-- The second miss enters `gameOver`.
+- The third miss enters `gameOver`.
 - Restart clears pieces and returns the score to zero and lives to two.
 - The camera target moves upward when the stack reaches half the viewport height.
 - Piece selection returns only supported types.

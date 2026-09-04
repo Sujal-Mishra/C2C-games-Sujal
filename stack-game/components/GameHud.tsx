@@ -1,3 +1,5 @@
+import { INITIAL_LIVES } from "@/game/rules";
+
 interface GameHudProps {
   score: number;
   lives: number;
@@ -13,12 +15,16 @@ export function GameHud({ score, lives }: GameHudProps) {
 
       <div className="status-panel">
         <span className="hud-label">Lives</span>
-        <output aria-label="Lives remaining" className="lives-value" aria-live="polite">{lives}</output>
-        <span className="life-pips" aria-hidden="true">
-          {Array.from({ length: 2 }, (_, index) => (
-            <span key={index} className={index < lives ? "life-pip is-active" : "life-pip"} />
+        <output aria-label="Lives remaining" className="life-pips" aria-live="polite">
+          <span className="visually-hidden">{lives}</span>
+          {Array.from({ length: INITIAL_LIVES }, (_, index) => (
+            <span
+              key={index}
+              aria-hidden="true"
+              className={index < lives ? "life-pip is-active" : "life-pip"}
+            />
           ))}
-        </span>
+        </output>
       </div>
     </aside>
   );
