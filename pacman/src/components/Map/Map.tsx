@@ -19,7 +19,7 @@ import {
 import { setMuted, setVolume, useSounds } from "./ui/audio.ts";
 import { useGame } from "./ui/input.ts";
 import { PX, drawMaze } from "./ui/canvas.ts";
-import { FACE, at, sprite } from "./ui/sprites.tsx";
+import { FACE, PORTALS, at, sprite } from "./ui/sprites.tsx";
 
 /**
  * Sprite timing, in ticks (= frames at 60 Hz). `GHOST_FRAME` is ticks per ghost
@@ -69,6 +69,9 @@ export default function Map() {
           height: `calc(${MAZE_ROWS} * var(--maze-cell))`,
         }}
       />
+      {PORTALS.map(({ tile, src }) => (
+        <div key={key(tile)} className="portal" style={{ ...at(tile), backgroundImage: `url(${src})` }} />
+      ))}
       {DOTS.pellets.filter(left).map((t) => sprite(t, "/pellet.svg", "sprite pellet"))}
       {DOTS.power.filter(left).map((t) => sprite(t, "/power-pellet.svg", "sprite power"))}
       {fruitOut(game) && sprite(FRUIT_SPAWN, "/cherry.svg", "sprite cherry")}

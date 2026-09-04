@@ -1,4 +1,4 @@
-import { key, type Tile } from "../game/index.ts";
+import { TELEPORTS, key, type Tile } from "../game/index.ts";
 
 /** Inline position for a `.sprite` sitting on `t`. */
 export const at = (t: Tile) => ({
@@ -11,4 +11,16 @@ export const FACE: Record<string, string> = { "-1,0": "up", "1,0": "down", "0,-1
 /** A `.sprite` div for one maze tile, showing `src` as its background image. */
 export const sprite = (t: Tile, src: string, className = "sprite", k = key(t)) => (
   <div key={k} className={className} style={{ ...at(t), backgroundImage: `url(${src})` }} />
+);
+
+/**
+ * Artwork per teleport pair, indexed the way `level.json` lists them, so both
+ * mouths of a pair share a look and a player can tell which one leads where.
+ * Cycled if a map ever adds more pairs than there are files.
+ */
+const PORTAL_ART = ["/Portal2.svg", "/Portal1.svg", "/Portal3.svg"];
+
+/** Every teleport mouth on the board, with the artwork of the pair it belongs to. */
+export const PORTALS: { tile: Tile; src: string }[] = TELEPORTS.flatMap(({ endpoints }, i) =>
+  endpoints.map((e) => ({ tile: { row: e.y, col: e.x }, src: PORTAL_ART[i % PORTAL_ART.length] })),
 );

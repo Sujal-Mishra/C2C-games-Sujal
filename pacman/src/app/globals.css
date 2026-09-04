@@ -33,6 +33,23 @@ body {
   background: no-repeat center / contain;
 }
 
+/*
+ * A teleport mouth. The artwork is a small stroked square inside a large glow
+ * box: it spans about a third of the SVG's 169px viewBox and the rest is room
+ * for the drop-shadow bloom. Drawing the box two cells wide therefore lands the
+ * square at roughly two thirds of a tile, about the size the old canvas ring
+ * was, and lets the glow spill into the corridor the way a portal should. The
+ * negative margin re-centres that two-cell box on the one-cell tile `at()`
+ * positions it on.
+ */
+.portal {
+  position: absolute;
+  width: calc(var(--maze-cell) * 2);
+  height: calc(var(--maze-cell) * 2);
+  margin: calc(var(--maze-cell) * -0.5);
+  background: no-repeat center / contain;
+}
+
 /* Arcade dot is 2px of an 8px tile; this sits a quarter under that so it reads as a small speck. */
 .pellet {
   background-size: 33.75%;
