@@ -123,19 +123,79 @@ const KEYS: Record<string, MovementDelta> = {
 const playing = new Set<HTMLAudioElement>();
 
 /**
+ * Whether the player has silenced the game.
+ *
+ * Why: {@link setMuted} has to reach sounds that don't exist yet — the siren
+ * created three minutes into a muted game must come out silent too — so the
+ * choice has to live somewhere every future {@link sound} can read.
+ * What: a module-level boolean, mirrored by the `quiet` state in {@link Map}
+ * (which is what actually re-renders the button).
+ * Design: module scope for the same reason as {@link playing} — audio outlives
+ * renders, and there's only ever one board.
+ */
+let muted = false;
+
+/**
+ * Silence or restore the game, now and for every sound made later.
+ *
+ * Why: a mute button that only caught sounds already playing would let the next
+ * chomp through; one that only caught future sounds would leave the siren
+ * wailing. So it does both.
+ * How: set the {@link muted} flag that {@link sound} stamps on new elements,
+ * then stamp every element currently in {@link playing}.
+ * What: `(on: boolean) => void`.
+ * Used by: the mute button in {@link Map}.
+ * Design: `.muted` rather than `.pause()` — the siren and chomp loops stay in
+ * step with the game while silent, so unmuting is instant and doesn't restart
+ * anything mid-note.
+ */
+const setMuted = (on: boolean) => {
+  muted = on;
+  playing.forEach((a) => (a.muted = on));
+};
+
+/**
+ * How loud the game is, 0..1.
+ *
+ * Why/what: the {@link muted} story exactly — the slider has to reach sounds
+ * that don't exist yet as well as the ones already going, so the setting lives
+ * at module scope where every future {@link sound} can read it. Mirrored by the
+ * `vol` state in {@link Map}, which is what moves the slider.
+ * Design: kept separate from `muted` rather than folded into one number, so
+ * un-muting returns you to the volume you had set rather than to full blast.
+ */
+let volume = 1;
+
+/**
+ * Set the game's volume, now and for every sound made later.
+ *
+ * How: mirrors {@link setMuted} — store it for new elements, then apply it to
+ * everything in {@link playing}.
+ * What: `(v: number) => void`, `v` in 0..1.
+ * Used by: the volume slider in {@link Map}.
+ */
+const setVolume = (v: number) => {
+  volume = v;
+  playing.forEach((a) => (a.volume = v));
+};
+
+/**
  * Create an `Audio` for `/sounds/<name>` and enrol it in {@link playing}.
  *
- * Why: every sound in the game must be track-able by {@link stopAll}; going
- * through one factory guarantees that.
- * How: `new Audio(...)`, add to `playing`, and wire an `ended` listener that
- * drops one-shots back out once they finish (loops never fire `ended`, so they
- * stay until {@link stopAll}).
+ * Why: every sound in the game must be track-able by {@link stopAll} and by
+ * {@link setMuted}; going through one factory guarantees that.
+ * How: `new Audio(...)`, inherit the current {@link muted} flag and
+ * {@link volume}, add to `playing`, and wire an `ended` listener that drops
+ * one-shots back out once they finish (loops never fire `ended`, so they stay
+ * until {@link stopAll}).
  * What: `(name: string) => HTMLAudioElement` — returns the element without
  * playing it, so the caller can set `.loop` or `.onended` first.
  * Used by: {@link play} and the loop setup in {@link useSounds} / {@link useGame}.
  */
 const sound = (name: string) => {
   const a = new Audio(`/sounds/${name}`);
+  a.muted = muted; // born silent if the player has already hit mute
+  a.volume = volume;
   playing.add(a);
   a.addEventListener("ended", () => playing.delete(a)); // one-shots drop out once they finish
   return a;
@@ -182,7 +242,9 @@ const stopAll = () => {
  * (oldest first) so the newest one can be asked for continuously; a `keydown`
  * handler maps the key via {@link KEYS}, and on the *first* key (`want.current
  * === STOP`) starts `opening_song.mp3`, flipping `go` true when it ends (or
- * immediately if audio is blocked); `keyup` drops the key from `held` and
+ * immediately if audio is blocked, or if the player has already {@link muted}
+ * the game — a silent wait just reads as a frozen board); `keyup` drops the
+ * key from `held` and
  * `blur` clears it (a key held while the tab loses focus never gets its
  * `keyup`); a `requestAnimationFrame` loop banks the real time elapsed since
  * the last frame (only once `go` is true, capped at {@link MAX_CATCH_UP_MS})
@@ -217,13 +279,17 @@ function useGame() {
   useEffect(() => {
     const held: string[] = []; // movement keys still down, oldest first: the newest is what's being asked for
     const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement | null)?.tagName === "INPUT") return; // the volume slider owns its own arrow keys
       const k = e.key.toLowerCase();
       const d = KEYS[k];
       if (!d) return;
       if (want.current === STOP) {
-        const jingle = sound("opening_song.mp3");
-        jingle.onended = () => (go.current = true);
-        jingle.play().catch(() => (go.current = true)); // audio blocked: just start
+        if (muted) go.current = true; // nothing to listen to: don't sit out a silent jingle
+        else {
+          const jingle = sound("opening_song.mp3");
+          jingle.onended = () => (go.current = true);
+          jingle.play().catch(() => (go.current = true)); // audio blocked: just start
+        }
       }
       if (!held.includes(k)) held.push(k); // key repeat fires keydown over and over while held
       want.current = d;
@@ -468,7 +534,9 @@ function drawMaze(canvas: HTMLCanvasElement) {
  *     the `<canvas>` (sized `MAZE_COLS/ROWS * PX`, displayed via `--maze-cell`),
  *     then the remaining pellets and power pellets (filtered by `left`, i.e.
  *     not in `eaten`), the cherry if `fruitOut`, every ghost, a floating
- *     bite-points number during the freeze, the score `<output>`, Pac-Man
+ *     bite-points number during the freeze, the mute button and the score
+ *     (the two bits of chrome, sat in the margin above the maze — `bottom-full`
+ *     puts them outside it, one flushed left and one right), Pac-Man
  *     (`rotate` from `atan2(dRow, dCol)` since the art faces right at 0°, and
  *     `hidden` during a bite), and the row of life pips (`lives - 1`).
  *   - Each ghost picks its sprite from `mode`/facing/`game.t` (every
@@ -480,6 +548,22 @@ function drawMaze(canvas: HTMLCanvasElement) {
  *     variables `--bob/--go/--back` tell the keyframes which way to drift and
  *     which two frames to alternate). The just-eaten ghost is hidden behind its
  *     points during the freeze.
+ *   - The mute button and volume slider sit in one flex row in the margin above
+ *     the maze. The button toggles `quiet` and drives {@link setMuted}; the
+ *     slider sets `vol` and drives {@link setVolume}, un-muting on the way if
+ *     the player had muted (reaching for the slider means "let me hear it").
+ *     The icon (`/sound-on.svg` / `/sound-off.svg`, pixel art on the fruit
+ *     grid) follows `silent` — either control can be the reason nothing is
+ *     audible — while the button's label and `aria-pressed` follow `quiet`
+ *     alone, because that's what pressing it changes. `--fill` colours the
+ *     slider's track up to the current value (see `.volume` in `globals.css`).
+ *     `quiet`/`vol` are the only state this component owns: the values that do
+ *     the silencing live at module scope with the audio, and these are React's
+ *     copies, kept so the controls re-render.
+ *     Both blur themselves on `pointerup` so the arrow keys go back to steering
+ *     Pac-Man after a click — and {@link useGame}'s key handler ignores events
+ *     aimed at an `<input>`, so a keyboard user on the slider adjusts the
+ *     volume without also driving into a ghost.
  * What: `() => JSX.Element`, the default export.
  * Used by: `src/components/Map/index.ts` -> `src/app/page.tsx`.
  * Design: derived-not-stored rendering — every frame is a pure function of
@@ -490,6 +574,9 @@ function drawMaze(canvas: HTMLCanvasElement) {
 export default function Map() {
   const game = useGame();
   useSounds(game);
+  const [quiet, setQuiet] = useState(false);
+  const [vol, setVol] = useState(1);
+  const silent = quiet || !vol; // what the icon shows: "you will hear nothing", whichever control caused it
   const { pos, dir } = game;
   const left = (t: Tile) => !game.eaten.has(key(t));
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -550,6 +637,34 @@ export default function Map() {
           {game.bite.points}
         </span>
       )}
+      <div className="absolute bottom-full left-0 mb-2 flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={quiet ? "Unmute" : "Mute"}
+          aria-pressed={quiet}
+          onClick={() => { setMuted(!quiet); setQuiet(!quiet); }}
+          onPointerUp={(e) => e.currentTarget.blur()} // give the keys back to the game after a click
+          className="size-9 cursor-pointer bg-contain bg-center bg-no-repeat opacity-80 hover:opacity-100 active:translate-y-px"
+          style={{ backgroundImage: `url(/sound-${silent ? "off" : "on"}.svg)` }}
+        />
+        <input
+          type="range"
+          aria-label="Volume"
+          min={0}
+          max={1}
+          step={0.1}
+          value={vol}
+          onChange={(e) => {
+            const v = e.currentTarget.valueAsNumber;
+            setVolume(v);
+            setVol(v);
+            if (quiet) { setMuted(false); setQuiet(false); } // reaching for the slider means "let me hear it"
+          }}
+          onPointerUp={(e) => e.currentTarget.blur()}
+          className="volume h-3 w-20"
+          style={{ "--fill": `${vol * 100}%` } as React.CSSProperties}
+        />
+      </div>
       <output aria-label="Score" className="absolute right-0 bottom-full pb-2 font-mono text-2xl text-white">
         {game.score}
       </output>
