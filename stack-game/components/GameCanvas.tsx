@@ -20,6 +20,7 @@ import {
   type IEventTimestamped
 } from "matter-js";
 import { createPieceBody, PIECE_STYLES } from "@/game/pieces";
+import { getPieceVisualPosition, setPieceVisualPosition } from "@/game/physics";
 import {
   AIM_MOVE_STEP,
   dropPiece,
@@ -102,14 +103,17 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   const syncSprites = useCallback(() => {
     setCameraY(cameraYRef.current);
     setSprites(
-      piecesRef.current.map((body) => ({
-        id: body.id,
-        type: body.plugin.shapeType as ShapeType,
-        x: body.position.x,
-        y: body.position.y,
-        angle: body.angle,
-        isActive: body === activeRef.current
-      }))
+      piecesRef.current.map((body) => {
+        const visualPosition = getPieceVisualPosition(body);
+        return {
+          id: body.id,
+          type: body.plugin.shapeType as ShapeType,
+          x: visualPosition.x,
+          y: visualPosition.y,
+          angle: body.angle,
+          isActive: body === activeRef.current
+        };
+      })
     );
   }, []);
 
@@ -118,14 +122,16 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     if (pausedRef.current || !body || phaseRef.current.phase !== "aiming") return;
     const nextX = Math.min(SPAWN_MAX_X, Math.max(SPAWN_MIN_X, x));
     spawnXRef.current = nextX;
-    Body.setPosition(body, { x: nextX, y: cameraYRef.current + SPAWN_SCREEN_Y });
+    setPieceVisualPosition(body, nextX, cameraYRef.current + SPAWN_SCREEN_Y);
     syncSprites();
   }, [syncSprites]);
 
   const rotate = useCallback(() => {
     const body = activeRef.current;
     if (pausedRef.current || !body || phaseRef.current.phase !== "aiming") return;
+    const visualPosition = getPieceVisualPosition(body);
     Body.rotate(body, Math.PI / 2);
+    setPieceVisualPosition(body, visualPosition.x, visualPosition.y);
     syncSprites();
   }, [syncSprites]);
 
@@ -201,7 +207,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         setPhase(next);
 
         if (next.phase === "locked") {
-          Body.setStatic(active, true);
+          Sleeping.set(active, true);
           setPhase(lockPiece(next));
           const stackTopY = Math.min(...piecesRef.current.map((body) => body.bounds.min.y));
           cameraTargetYRef.current = getEndlessCameraTargetY(
@@ -226,10 +232,11 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
           );
           const active = activeRef.current;
           if (active && phaseRef.current.phase === "aiming") {
-            Body.setPosition(active, {
-              x: spawnXRef.current,
-              y: cameraYRef.current + SPAWN_SCREEN_Y
-            });
+            setPieceVisualPosition(
+              active,
+              spawnXRef.current,
+              cameraYRef.current + SPAWN_SCREEN_Y
+            );
           }
         }
         Engine.update(engine, 1000 / 60);
@@ -270,7 +277,9 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
   useEffect(() => {
     const body = activeRef.current;
     if (!body || phaseRef.current.phase !== "aiming") return;
+    const visualPosition = getPieceVisualPosition(body);
     Body.setAngle(body, rotation * (Math.PI / 2));
+    setPieceVisualPosition(body, visualPosition.x, visualPosition.y);
     phaseRef.current = { ...phaseRef.current, rotation };
     syncSprites();
   }, [rotation, syncSprites]);

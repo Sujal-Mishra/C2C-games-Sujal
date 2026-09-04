@@ -31,7 +31,7 @@ export function LogoStackGame() {
   const [showScore, setShowScore] = useState(false);
   const [rotation, setRotation] = useState<QuarterTurn>(0);
   const [currentShape, setCurrentShape] = useState<ShapeType>("logo");
-  const [nextShape, setNextShape] = useState<ShapeType>("blossom");
+  const [nextShape, setNextShape] = useState<ShapeType>("petal");
   const [runId, setRunId] = useState(0);
   const [pieceId, setPieceId] = useState(0);
 

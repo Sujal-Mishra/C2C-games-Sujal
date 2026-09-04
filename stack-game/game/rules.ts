@@ -85,7 +85,7 @@ export function restartGame(): GameState {
 export function pickShape(random: number = Math.random()): ShapeType {
   const normalized = Math.min(0.999999, Math.max(0, random));
   if (normalized < 0.5) return "logo";
-  if (normalized < 0.75 || normalized >= 0.99) return "blossom";
+  if (normalized < 0.75 || normalized >= 0.99) return "petal";
   if (normalized < 0.8) return "origami";
   if (normalized < 0.9) return "lantern";
   return "butterfly";

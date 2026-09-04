@@ -84,12 +84,12 @@ describe("run lifecycle", () => {
     expect(restartGame()).toEqual(initial);
   });
 
-  test("random selection returns only the two supplied assets", () => {
+  test("random selection maps boundary values to supported assets", () => {
     expect([pickShape(0), pickShape(0.49), pickShape(0.5), pickShape(0.99)]).toEqual([
       "logo",
       "logo",
-      "blossom",
-      "blossom"
+      "petal",
+      "petal"
     ]);
   });
 });

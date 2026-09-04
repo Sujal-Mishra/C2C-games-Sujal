@@ -20,12 +20,12 @@ The design follows the supplied Code2Create reference:
 
 - A centered, true-black game card over a restrained blush-to-plum page background
 - Cherry-blossom pink accents used sparingly for borders, values, and the platform
-- Do Hyeon display typography in off-white with normal weight and line height
+- Poppins typography in off-white with normal weight and line height
 - Unboxed score and life information beside the playfield
 - A small number of low-opacity animated petals for atmosphere, without tree artwork
 - Soft shadows and subtle pink outlines that keep the interface minimal
 
-The game objects will be a circle, a square initially presented at a diamond angle, and a hexagon. Each piece will use a distinct pink shade and clear internal detailing so its rotation remains readable.
+The randomized game objects are the C2C logo, petal, origami crane, lantern, and butterfly SVG assets. Each visible silhouette has matching collision geometry so rotations and contacts remain visually credible.
 
 ## Layout
 
@@ -61,16 +61,16 @@ Inputs that could create another piece or reposition the active piece are ignore
 
 ## Pieces and Physics
 
-Matter.js simulates gravity, collisions, angular motion, and stacking. Pieces use:
+Matter.js simulates gravity, collisions, angular motion, and stacking. Each SVG uses a traced, simplified collision outline at the same rendered scale. Concave assets such as the petal and butterfly are decomposed into stable convex parts, and their visual centers remain offset from their physical centers of mass where appropriate. Pieces use:
 
-- High surface friction
-- Low restitution for mild bounce
-- Moderate air resistance and angular damping
-- Slightly generous collision shapes and mass tuning for an arcade-like feel
+- Shape-specific surface and static friction
+- Low restitution for mild, material-appropriate bounce
+- Higher air resistance and lower density for paper-like assets
+- Collision bounds matched to opaque artwork rather than the SVG canvas
 
-The platform is a fixed physics body. Previously locked pieces become fixed bodies, ensuring they cannot drift or move after settling.
+The platform is a fixed physics body. Previously locked pieces sleep after settling but remain dynamic, allowing later impacts to wake, shift, or topple them naturally.
 
-A falling piece enters a settling phase after making contact. It locks when both its linear and angular speeds remain below tuned thresholds for approximately one second. If the piece begins moving meaningfully during that interval, the timer resets. This allows a piece to slide or tumble to a lower resting position before it is fixed.
+A falling piece enters a settling phase after making contact. It locks when both its linear and angular speeds remain below tuned thresholds for approximately one second. If the piece begins moving meaningfully during that interval, the timer resets. This allows a piece to slide or tumble to a lower resting position before sleeping; future collisions can wake it again.
 
 ## Game State
 
@@ -79,7 +79,7 @@ The controller uses these explicit states:
 1. `aiming`: the current piece follows horizontal input and accepts rotation.
 2. `falling`: gravity and collisions control the dropped piece.
 3. `settling`: the piece is in contact and is monitored for sustained stability.
-4. `locked`: the stable piece becomes fixed and awards points.
+4. `locked`: the stable piece sleeps and awards points while remaining responsive to later impacts.
 5. `gameOver`: a piece has fallen below the failure boundary and play is stopped.
 
 After `locked`, the controller selects the next randomized piece and returns to `aiming`. When the stack top reaches the viewport midpoint, the camera target moves upward while the aiming piece remains at a consistent on-screen spawn height.
@@ -123,18 +123,19 @@ Automated tests will cover:
 - Drop input changes `aiming` to `falling` only once.
 - Sustained low motion locks a piece; renewed motion resets settlement.
 - A locked piece adds exactly 100 points.
-- The first miss consumes one life and resets the score, locked stack, and camera for an independent second life.
+- The first and second misses each reset the score, locked stack, and camera for the next independent life.
 - The third miss enters `gameOver`.
-- Restart clears pieces and returns the score to zero and lives to two.
+- Restart clears pieces and returns the score to zero and lives to three.
 - The camera target moves upward when the stack reaches half the viewport height.
 - Piece selection returns only supported types.
 
 Implementation is accepted when:
 
-- Randomized logo and blossom pieces can be positioned, rotated, and dropped.
-- Pieces visibly respond to gravity and collisions, then become immovable after settling.
+- Randomized logo, petal, origami, lantern, and butterfly pieces can be positioned, rotated, and dropped.
+- Collision bodies align with the visible SVG silhouettes through falling, rotation, and stacking.
+- Pieces visibly respond to gravity and collisions, sleep after settling, and can be moved by later impacts.
 - Stable pieces award points and trigger the next piece.
-- One fallen piece consumes a life; the second ends the run.
+- Each fallen piece consumes a life; the third ends the run.
 - Keyboard and touch controls work at representative desktop and mobile sizes.
 - The page matches the agreed cherry-blossom theme.
 - Unit tests and the production Next.js build pass without errors.
