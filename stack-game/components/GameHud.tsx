@@ -21,12 +21,12 @@ function petalStyle([x, y, width, height, duration, delay, spin]: typeof PETAL_B
 
 interface GameHudProps {
   score: number;
-  bestScore: number;
+  totalScore: number;
   lives: number;
   lostLifeIndex?: number | null;
 }
 
-export function GameHud({ score, bestScore, lives, lostLifeIndex = null }: GameHudProps) {
+export function GameHud({ score, totalScore, lives, lostLifeIndex = null }: GameHudProps) {
   return (
     <aside className="game-status" aria-label="Game status">
       <div className="status-panel">
@@ -35,8 +35,8 @@ export function GameHud({ score, bestScore, lives, lostLifeIndex = null }: GameH
       </div>
 
       <div className="status-panel status-panel--best">
-        <span className="hud-label">Best score</span>
-        <output aria-label="Best score" className="best-score-value">{bestScore}</output>
+        <span className="hud-label">Total score</span>
+        <output aria-label="Total score" className="best-score-value">{totalScore}</output>
       </div>
 
       <div className="status-panel status-panel--lives">

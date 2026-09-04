@@ -50,7 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-test("shows current and best scores with three flower lives in the game frame", () => {
+test("shows current and total scores with three flower lives in the game frame", () => {
   render(<LogoStackGame />);
 
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
@@ -60,7 +60,7 @@ test("shows current and best scores with three flower lives in the game frame", 
   const gameStatus = screen.getByRole("complementary", { name: /game status/i });
   expect(gameStatus).toBeVisible();
   expect(gameStatus.closest(".canvas-frame")).not.toBeNull();
-  expect(screen.getByLabelText("Best score")).toHaveTextContent("0");
+  expect(screen.getByLabelText("Total score")).toHaveTextContent("0");
   expect(screen.queryByText(/next object/i)).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /open menu/i })).toBeVisible();
   expect(screen.queryByText(/desktop:|phone:/i)).not.toBeInTheDocument();
@@ -131,7 +131,7 @@ test("the first miss starts an independent second life with a fresh score and wo
   expect(localStorage.getItem("logo-stack-best")).toBe("100");
 });
 
-test("the third miss ends the run and preserves the best score across all lives", async () => {
+test("the third miss ends the run and preserves the total score across all lives", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
@@ -152,7 +152,7 @@ test("the third miss ends the run and preserves the best score across all lives"
   expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /view score/i })).not.toBeInTheDocument();
   expect(screen.getByRole("heading", { name: /game over/i })).toHaveClass("pixel-game-over");
-  expect(screen.getByText(/score: 100/i)).toBeVisible();
+  expect(screen.getByText(/total score: 400/i)).toBeVisible();
   expect(localStorage.getItem("logo-stack-best")).toBe("200");
 
 });
@@ -185,14 +185,14 @@ test("the pause menu never offers Retry", async () => {
   expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument();
 });
 
-test("keeps the personal best internally while showing the best score for this run", async () => {
+test("keeps the personal best internally while showing total score for this run", async () => {
   localStorage.setItem("logo-stack-best", "900");
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   expect(localStorage.getItem("logo-stack-best")).toBe("900");
-  expect(screen.getByLabelText("Best score")).toHaveTextContent("100");
+  expect(screen.getByLabelText("Total score")).toHaveTextContent("100");
 });
 
 test("arrow keys use minute movement while Space rotates and Enter drops", async () => {

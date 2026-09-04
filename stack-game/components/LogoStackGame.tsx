@@ -28,7 +28,7 @@ export function LogoStackGame() {
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(INITIAL_LIVES);
   const [bestScore, setBestScore] = useState(0);
-  const [bestLifeScore, setBestLifeScore] = useState(0);
+  const [totalScore, setTotalScore] = useState(0);
   const [phase, setPhase] = useState<GamePhase>("aiming");
   const [menuOpen, setMenuOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(true);
@@ -70,10 +70,10 @@ export function LogoStackGame() {
 
   const handleLocked = useCallback(() => {
     audio.playLock();
+    setTotalScore((total) => total + POINTS_PER_PIECE);
     setScore((value) => {
       const nextScore = value + POINTS_PER_PIECE;
       setBestScore((best) => updateBestScore(nextScore, best, scoreStoreRef.current));
-      setBestLifeScore((best) => Math.max(best, nextScore));
       return nextScore;
     });
     startNextPiece();
@@ -184,7 +184,7 @@ export function LogoStackGame() {
                 onGameOver={handleGameOver}
                 onPhaseChange={setPhase}
               />
-              <GameHud score={score} bestScore={bestLifeScore} lives={lives} lostLifeIndex={lostLifeIndex} />
+              <GameHud score={score} totalScore={totalScore} lives={lives} lostLifeIndex={lostLifeIndex} />
               <button type="button" className="action-button mobile-drop-button" onClick={drop} disabled={phase !== "aiming" || !hasStarted || menuOpen || lostLifeIndex !== null}>Drop</button>
             </div>
           </div>
@@ -203,7 +203,7 @@ export function LogoStackGame() {
         />
       )}
       {ended && (
-        <GameOverOverlay bestScore={bestLifeScore} />
+        <GameOverOverlay totalScore={totalScore} />
       )}
     </main>
   );
