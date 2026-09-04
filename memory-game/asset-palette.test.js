@@ -78,12 +78,12 @@ test("every marine card uses deep pink and off-white with translucent cookies", 
       if (color === "7a1f45") cookieAlphas.push(pixels[index + 3]);
     }
     assert.deepEqual(colors, EXPECTED_COLORS, asset);
-    assert.equal(Math.max(...cookieAlphas), 230, `${asset} cookie opacity`);
+    assert.equal(Math.max(...cookieAlphas), 191, `${asset} cookie opacity`);
   }
 });
 
 test("the cookie back uses the same translucent deep pink", async () => {
   const cookie = await readFile("assets/cookie-card.svg", "utf8");
   assert.match(cookie, /fill="#7A1F45"/);
-  assert.match(cookie, /fill-opacity="0\.9"/);
+  assert.match(cookie, /fill-opacity="0\.75"/);
 });
