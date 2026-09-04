@@ -1,6 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
 import { LogoStackGame } from "./LogoStackGame";
+
+async function beginGame() {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /^play$/i }));
+  await user.click(screen.getByRole("button", { name: /^continue$/i }));
+  return user;
+}
 
 function fireTouchPointer(
   target: Element,
@@ -19,6 +27,7 @@ function fireTouchPointer(
 
 test("mouse movement and clicking do not control or drop the piece", async () => {
   render(<LogoStackGame />);
+  await beginGame();
   const playfield = screen.getByRole("application", { name: /logo stack playfield/i });
   const piece = await screen.findByAltText("Current logo piece");
   const startingLeft = piece.style.left;
@@ -36,6 +45,7 @@ test("mouse movement and clicking do not control or drop the piece", async () =>
 
 test("A, D, and arrow keys move while Space rotates and Enter continuously drops", async () => {
   render(<LogoStackGame />);
+  await beginGame();
 
   expect(screen.getByTestId("platform")).toBeVisible();
   const piece = await screen.findByAltText("Current logo piece");
@@ -70,8 +80,9 @@ test("A, D, and arrow keys move while Space rotates and Enter continuously drops
   );
 });
 
-test("touch tap rotates, horizontal swipe nudges, and downward swipe drops", async () => {
+test("touch tap rotates, horizontal swipe nudges, and the Drop button drops", async () => {
   render(<LogoStackGame />);
+  const user = await beginGame();
   const playfield = screen.getByRole("application", { name: /logo stack playfield/i });
   const piece = await screen.findByAltText("Current logo piece");
   const startingLeft = piece.style.left;
@@ -87,13 +98,13 @@ test("touch tap rotates, horizontal swipe nudges, and downward swipe drops", asy
   });
 
   const aimingTop = Number.parseFloat(piece.style.top);
-  fireTouchPointer(playfield, "pointerdown", { pointerId: 3, clientX: 450, clientY: 120 });
-  fireTouchPointer(playfield, "pointerup", { pointerId: 3, clientX: 452, clientY: 210 });
+  await user.click(screen.getByRole("button", { name: /^drop$/i }));
   await waitFor(() => expect(Number.parseFloat(piece.style.top)).toBeGreaterThan(aimingTop));
 });
 
 test("Enter releases the piece visibly, lets it settle on the platform, then locks it", async () => {
   render(<LogoStackGame />);
+  await beginGame();
   const piece = await screen.findByAltText("Current logo piece");
   const startingTop = Number.parseFloat(piece.style.top);
 

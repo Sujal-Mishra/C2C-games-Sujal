@@ -8,9 +8,9 @@ import { GameMenu } from "./GameMenu";
 import { GameOverOverlay } from "./GameOverOverlay";
 import {
   AIM_MOVE_STEP,
+  drawShapeFromBag,
   INITIAL_LIVES,
   loseLife,
-  pickShape,
   POINTS_PER_PIECE,
   rotateQuarterTurn
 } from "@/game/rules";
@@ -22,18 +22,27 @@ export function LogoStackGame() {
   const petalsRef = useRef<HTMLDivElement>(null);
   const scoreStoreRef = useRef(createLocalScoreStore());
   const livesRef = useRef(INITIAL_LIVES);
+  const shapeBagRef = useRef<ShapeType[]>([]);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(INITIAL_LIVES);
   const [bestScore, setBestScore] = useState(0);
   const [phase, setPhase] = useState<GamePhase>("aiming");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [introOpen, setIntroOpen] = useState(true);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [lostLifeIndex, setLostLifeIndex] = useState<number | null>(null);
   const [ended, setEnded] = useState(false);
-  const [showScore, setShowScore] = useState(false);
   const [rotation, setRotation] = useState<QuarterTurn>(0);
   const [currentShape, setCurrentShape] = useState<ShapeType>("logo");
   const [nextShape, setNextShape] = useState<ShapeType>("petal");
   const [runId, setRunId] = useState(0);
   const [pieceId, setPieceId] = useState(0);
+
+  const drawNextShape = useCallback(() => {
+    const draw = drawShapeFromBag(shapeBagRef.current);
+    shapeBagRef.current = draw.bag;
+    return draw.shape;
+  }, []);
 
   const rotate = useCallback(() => {
     if (phase !== "aiming") return;
@@ -49,11 +58,11 @@ export function LogoStackGame() {
 
   const startNextPiece = useCallback(() => {
     setCurrentShape(nextShape);
-    setNextShape(pickShape());
+    setNextShape(drawNextShape());
     setRotation(0);
     setPieceId((value) => value + 1);
     setPhase("aiming");
-  }, [nextShape]);
+  }, [drawNextShape, nextShape]);
 
   const handleLocked = useCallback(() => {
     setScore((value) => {
@@ -68,8 +77,8 @@ export function LogoStackGame() {
     setScore(0);
     setPhase("aiming");
     setRotation(0);
-    setCurrentShape(pickShape());
-    setNextShape(pickShape());
+    setCurrentShape(drawNextShape());
+    setNextShape(drawNextShape());
     setPieceId(0);
     setRunId((value) => value + 1);
   }, []);
@@ -78,27 +87,29 @@ export function LogoStackGame() {
     const remainingLives = loseLife(livesRef.current);
     livesRef.current = remainingLives;
     setLives(remainingLives);
-    if (remainingLives > 0) startFreshLife();
-    return remainingLives > 0;
-  }, [startFreshLife]);
+    setLostLifeIndex(remainingLives);
+    return true;
+  }, [drawNextShape]);
 
   const endGame = useCallback(() => {
     setMenuOpen(false);
-    setShowScore(false);
+    setLostLifeIndex(null);
     setEnded(true);
     setPhase("gameOver");
   }, []);
 
   const handleGameOver = useCallback(() => endGame(), [endGame]);
 
-  const restart = useCallback(() => {
-    livesRef.current = INITIAL_LIVES;
-    setLives(INITIAL_LIVES);
-    setMenuOpen(false);
-    setEnded(false);
-    setShowScore(false);
-    startFreshLife();
-  }, [startFreshLife]);
+  useEffect(() => {
+    if (lostLifeIndex === null) return;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(() => {
+      setLostLifeIndex(null);
+      if (livesRef.current > 0) startFreshLife();
+      else endGame();
+    }, reducedMotion ? 80 : 650);
+    return () => window.clearTimeout(timer);
+  }, [endGame, lostLifeIndex, startFreshLife]);
 
   useEffect(() => {
     setBestScore(scoreStoreRef.current.readBest());
@@ -119,12 +130,12 @@ export function LogoStackGame() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if (event.key === "Escape" && !ended) {
+      if (event.key === "Escape" && !ended && hasStarted && lostLifeIndex === null) {
         event.preventDefault();
         setMenuOpen((open) => !open);
         return;
       }
-      if (menuOpen || ended) return;
+      if (!hasStarted || menuOpen || ended || lostLifeIndex !== null) return;
       if (phase !== "aiming") return;
       if (key === "arrowleft" || key === "arrowright" || key === "a" || key === "d") {
         event.preventDefault();
@@ -139,7 +150,7 @@ export function LogoStackGame() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [drop, ended, menuOpen, phase, rotate]);
+  }, [drop, ended, hasStarted, lostLifeIndex, menuOpen, phase, rotate]);
 
   return (
     <main className="game-page">
@@ -149,6 +160,7 @@ export function LogoStackGame() {
         ))}
       </div>
       <section className="game-layout" id="game">
+        <button type="button" className="icon-button game-menu-button" aria-label="Open menu" onClick={() => setMenuOpen(true)}>☰</button>
         <div className="game-stage">
           <div className="game-board-wrap">
             <div className="canvas-frame">
@@ -158,27 +170,32 @@ export function LogoStackGame() {
                 rotation={rotation}
                 runId={runId}
                 pieceId={pieceId}
-                paused={menuOpen || ended}
+                paused={!hasStarted || menuOpen || ended || lostLifeIndex !== null}
                 onLocked={handleLocked}
                 onPieceMissed={handlePieceMissed}
                 onGameOver={handleGameOver}
                 onPhaseChange={setPhase}
               />
-              <GameHud score={score} lives={lives} />
+              <GameHud score={score} lives={lives} lostLifeIndex={lostLifeIndex} />
+              <button type="button" className="action-button mobile-drop-button" onClick={drop} disabled={phase !== "aiming" || !hasStarted || menuOpen || lostLifeIndex !== null}>Drop</button>
             </div>
           </div>
         </div>
       </section>
 
-      {menuOpen && <GameMenu onClose={() => setMenuOpen(false)} onRetry={restart} />}
-      {ended && (
-        <GameOverOverlay
-          score={score}
-          bestScore={bestScore}
-          showScore={showScore}
-          onRetry={restart}
-          onViewScore={() => setShowScore(true)}
+      {introOpen && (
+        <div className="overlay-backdrop intro-overlay">
+          <button type="button" className="play-button" aria-label="Play" onClick={() => { setIntroOpen(false); setMenuOpen(true); }}><span className="play-triangle" aria-hidden="true" /></button>
+        </div>
+      )}
+      {menuOpen && (
+        <GameMenu
+          onClose={() => { setMenuOpen(false); if (!hasStarted) setIntroOpen(true); }}
+          onContinue={() => { setHasStarted(true); setIntroOpen(false); setMenuOpen(false); }}
         />
+      )}
+      {ended && (
+        <GameOverOverlay score={score} />
       )}
     </main>
   );

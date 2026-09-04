@@ -90,3 +90,12 @@ export function pickShape(random: number = Math.random()): ShapeType {
   if (normalized < 0.9) return "lantern";
   return "butterfly";
 }
+
+const SHAPES: readonly ShapeType[] = ["logo", "petal", "origami", "lantern", "butterfly"];
+
+export function drawShapeFromBag(bag: readonly ShapeType[], random: number = Math.random()): { shape: ShapeType; bag: ShapeType[] } {
+  const available = bag.length ? [...bag] : [...SHAPES];
+  const index = Math.min(available.length - 1, Math.max(0, Math.floor(random * available.length)));
+  const [shape] = available.splice(index, 1);
+  return { shape, bag: available };
+}

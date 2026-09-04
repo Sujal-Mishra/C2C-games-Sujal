@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { GameState, QuarterTurn } from "./types";
 import {
   clampSpawnX,
+  drawShapeFromBag,
   dropPiece,
   getEndlessCameraTargetY,
   hasPieceMissed,
@@ -91,5 +92,17 @@ describe("run lifecycle", () => {
       "petal",
       "petal"
     ]);
+  });
+
+  test("shuffle bag serves every asset once before any asset repeats", () => {
+    let bag: ReturnType<typeof drawShapeFromBag>["bag"] = [];
+    const firstCycle = [0.14, 0.87, 0.32, 0.68, 0.49].map((random) => {
+      const draw = drawShapeFromBag(bag, random);
+      bag = draw.bag;
+      return draw.shape;
+    });
+
+    expect(new Set(firstCycle)).toEqual(new Set(["logo", "petal", "origami", "lantern", "butterfly"]));
+    expect(bag).toHaveLength(0);
   });
 });

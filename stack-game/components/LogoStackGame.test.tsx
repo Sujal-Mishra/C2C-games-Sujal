@@ -1,7 +1,7 @@
 import { forwardRef, useImperativeHandle } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const canvasActions = vi.hoisted(() => ({
   moveBy: vi.fn(),
@@ -62,10 +62,42 @@ test("shows only the playfield with score and three flower lives at its side", (
   expect(gameStatus.closest(".canvas-frame")).not.toBeNull();
   expect(screen.queryByLabelText("Best score")).not.toBeInTheDocument();
   expect(screen.queryByText(/next object/i)).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /^drop$|^rotate$|open menu/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /open menu/i })).toBeVisible();
   expect(screen.queryByText(/desktop:|phone:/i)).not.toBeInTheDocument();
   expect(document.querySelector(".tree-background")).not.toBeInTheDocument();
   expect(document.querySelectorAll(".ambient-petals i")).toHaveLength(12);
+});
+
+afterEach(() => vi.useRealTimers());
+
+async function beginGame(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /^play$/i }));
+  await user.click(screen.getByRole("button", { name: /^continue$/i }));
+}
+
+test("starts behind Play, then opens instructions and continues into gameplay", async () => {
+  const user = userEvent.setup();
+  render(<LogoStackGame />);
+  expect(screen.getByRole("button", { name: /^play$/i })).toBeVisible();
+  expect(screen.getByRole("button", { name: /^play$/i })).not.toHaveTextContent(/play/i);
+  expect(screen.getByTestId("canvas-paused")).toHaveTextContent("true");
+  await user.click(screen.getByRole("button", { name: /^play$/i }));
+  expect(screen.getByRole("dialog", { name: /game menu/i })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: /^continue$/i }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
+});
+
+test("a lost life poofs into individual petals before the next world starts", async () => {
+  vi.useFakeTimers();
+  render(<LogoStackGame />);
+  fireEvent.click(screen.getByRole("button", { name: /lose test piece/i }));
+  expect(document.querySelectorAll(".life-petal-poof i")).toHaveLength(12);
+  expect(screen.getByTestId("canvas-paused")).toHaveTextContent("true");
+  expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("0");
+  await act(() => vi.advanceTimersByTimeAsync(650));
+  expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("1");
+  vi.useRealTimers();
 });
 
 test("each locked component awards exactly 100 points", async () => {
@@ -83,10 +115,12 @@ test("each locked component awards exactly 100 points", async () => {
 test("the first miss starts an independent second life with a fresh score and world", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
+  await beginGame(user);
 
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
 
+  await waitFor(() => expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("1"), { timeout: 1200 });
   expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
   expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("2");
   expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("1");
@@ -102,27 +136,30 @@ test("the third miss ends the run and preserves the best score across all lives"
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+  await waitFor(() => expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("1"), { timeout: 1200 });
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+  await waitFor(() => expect(screen.getByTestId("canvas-run-id")).toHaveTextContent("2"), { timeout: 1200 });
   await user.click(screen.getByRole("button", { name: /settle test piece/i }));
   await user.click(screen.getByRole("button", { name: /lose test piece/i }));
+
+  await waitFor(() => expect(screen.getByRole("dialog", { name: /game ended/i })).toBeVisible(), { timeout: 1200 });
 
   expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("0");
   expect(screen.getByRole("dialog", { name: /game ended/i })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: /view score/i }));
-  expect(screen.getByText(/run score: 100/i)).toBeVisible();
-  expect(screen.getByText(/best score: 200/i)).toBeVisible();
+  expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /view score/i })).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /game over/i })).toHaveClass("pixel-game-over");
+  expect(screen.getByText(/score: 100/i)).toBeVisible();
   expect(localStorage.getItem("logo-stack-best")).toBe("200");
 
-  await user.click(screen.getByRole("button", { name: /^retry$/i }));
-  expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("3");
-  expect(localStorage.getItem("logo-stack-best")).toBe("200");
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
-test("Escape pauses and resumes the game without a header menu button", () => {
+test("Escape and the header menu button open the same closable menu", async () => {
+  const user = userEvent.setup();
   render(<LogoStackGame />);
+
+  await beginGame(user);
 
   fireEvent.keyDown(window, { key: "Escape" });
   expect(screen.getByRole("dialog", { name: /game menu/i })).toBeVisible();
@@ -131,18 +168,19 @@ test("Escape pauses and resumes the game without a header menu button", () => {
   fireEvent.keyDown(window, { key: "Escape" });
   expect(screen.queryByRole("dialog", { name: /game menu/i })).not.toBeInTheDocument();
   expect(screen.getByTestId("canvas-paused")).toHaveTextContent("false");
+  await user.click(screen.getByRole("button", { name: /open menu/i }));
+  expect(screen.getByRole("dialog", { name: /game menu/i })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: /close menu/i }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
-test("Retry in the pause menu resets the current run", async () => {
+test("the pause menu never offers Retry", async () => {
   const user = userEvent.setup();
   render(<LogoStackGame />);
 
-  await user.click(screen.getByRole("button", { name: /settle test piece/i }));
+  await beginGame(user);
   fireEvent.keyDown(window, { key: "Escape" });
-  await user.click(screen.getByRole("button", { name: /^retry$/i }));
-
-  expect(screen.getByLabelText("Current score")).toHaveTextContent("0");
-  expect(screen.getByLabelText("Lives remaining")).toHaveTextContent("3");
+  expect(screen.queryByRole("button", { name: /^retry$/i })).not.toBeInTheDocument();
 });
 
 test("keeps the personal best internally without showing it in the game header", async () => {
@@ -155,8 +193,10 @@ test("keeps the personal best internally without showing it in the game header",
   expect(screen.queryByLabelText("Best score")).not.toBeInTheDocument();
 });
 
-test("arrow keys use minute movement while Space rotates and Enter drops", () => {
+test("arrow keys use minute movement while Space rotates and Enter drops", async () => {
+  const user = userEvent.setup();
   render(<LogoStackGame />);
+  await beginGame(user);
 
   fireEvent.keyDown(window, { key: "ArrowLeft" });
   fireEvent.keyDown(window, { key: "ArrowRight" });

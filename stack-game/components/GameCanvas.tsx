@@ -301,9 +301,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         if (event.pointerType !== "touch" || !start || pausedRef.current) return;
         const deltaX = event.clientX - start.x;
         const deltaY = event.clientY - start.y;
-        if (deltaY >= 40 && Math.abs(deltaY) > Math.abs(deltaX)) {
-          drop();
-        } else if (Math.abs(deltaX) >= 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        if (Math.abs(deltaX) >= 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
           moveTo(spawnXRef.current + Math.sign(deltaX) * AIM_MOVE_STEP);
         } else if (Math.hypot(deltaX, deltaY) < 18) {
           rotate();
@@ -332,7 +330,14 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         data-testid="platform"
         aria-hidden="true"
         style={{ top: `${((PLATFORM_Y - cameraY) / WORLD_HEIGHT) * 100}%` }}
-      />
+      >
+        <img
+          className="platform-art"
+          data-testid="platform-art"
+          src="/assets/sakura-stone-platform.png"
+          alt=""
+        />
+      </div>
     </div>
   );
 });
