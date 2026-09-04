@@ -68,14 +68,19 @@ export function useSounds(game: Game) {
   useEffect(() => {
     const p = prev.current;
     prev.current = game;
-    if (!game.lives || cleared(game)) { stopAll(); return; } // the game just ended, win or lose: cut everything, start nothing new
+    // The game just ended, win or lose: cut everything and start nothing new. The loops go
+    // with it, so a new game builds its own — `stopAll` has dropped these from the set that
+    // `setMuted`/`setVolume` reach, and a reused one would ignore both controls.
+    if (!game.lives || cleared(game)) { stopAll(); loops.current = {}; return; }
     const loop = (name: string, on: boolean) => {
       const a = (loops.current[name] ??= Object.assign(sound(name), { loop: true }));
       if (!on) a.pause();
       else if (a.paused) a.play().catch(() => {});
     };
     if (game.lives < p.lives) play("die.mp3");
-    if (game.lives > p.lives) play("extra-lives.mp3");
+    // `game.t > p.t` keeps this to a life actually won mid-game: PLAY AGAIN also raises the
+    // count, off a board whose clock has just gone back to 0, and that is not an extra life.
+    if (game.lives > p.lives && game.t > p.t) play("extra-lives.mp3");
     if (game.bite && !p.bite) play("eatghost.mp3");
     if (game.fright > p.fright) play("eatpill.mp3");
     if (p.fruit && !game.fruit && key(game.pos) === key(FRUIT_SPAWN)) play("eatfruit.wav");

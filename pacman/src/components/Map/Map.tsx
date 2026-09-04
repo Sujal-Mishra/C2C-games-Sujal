@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   CELL,
   DOTS,
@@ -31,15 +31,18 @@ const FLASH = 12;
 
 /** The board: ticks the game, plays its sounds, and draws the maze, dots, fruit, ghosts and Pac-Man. */
 export default function Map() {
-  const game = useGame();
+  const { game, started, start, restart } = useGame();
   useSounds(game);
   const [quiet, setQuiet] = useState(false);
   const [vol, setVol] = useState(1);
   const silent = quiet || !vol; // what the icon shows: "you will hear nothing", whichever control caused it
   const { pos, dir } = game;
   const left = (t: Tile) => !game.eaten.has(key(t));
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => drawMaze(canvas.current!), []);
+  // A ref callback rather than a mount effect: the board is unmounted by the end screen and
+  // mounted again by PLAY AGAIN, and the walls have to be painted onto each new canvas node.
+  const canvas = useCallback((el: HTMLCanvasElement | null) => {
+    if (el) drawMaze(el);
+  }, []);
 
   const done = cleared(game);
   if (!game.lives || done) {
@@ -49,6 +52,13 @@ export default function Map() {
           {done ? "GAME COMPLETED" : "GAME OVER"}
         </p>
         <p className="mt-8 text-base text-white sm:text-2xl">SCORE {game.score}</p>
+        <button
+          type="button"
+          onClick={restart}
+          className="mt-8 cursor-pointer border-2 border-[#F1CEDF] px-4 py-2 text-base text-[#F1CEDF] hover:bg-[#F1CEDF] hover:text-black active:translate-y-px sm:text-xl"
+        >
+          PLAY AGAIN
+        </button>
       </div>
     );
   }
@@ -150,9 +160,19 @@ export default function Map() {
           rotate: `${(Math.atan2(dir[0], dir[1]) * 180) / Math.PI}deg`,
         }}
       />
+      {!started && (
+        <button
+          type="button"
+          aria-label="Play"
+          onClick={start}
+          className="group absolute inset-0 z-10 grid cursor-pointer place-items-center bg-[#F1CEDF]/40 backdrop-blur-[3px]"
+        >
+          <span className="play size-[calc(var(--maze-cell)*4)] rounded-full bg-[#F1CEDF] shadow-[0_0_var(--maze-cell)_#F1CEDF] transition-transform group-hover:scale-110 group-active:scale-95" />
+        </button>
+      )}
     </div>
     <ul aria-label="Lives" className="flex gap-2 p-2">
-      {Array.from({ length: Math.max(0, game.lives - 1) }, (_, i) => (
+      {Array.from({ length: game.lives }, (_, i) => (
         <li key={i} className="size-(--maze-cell) bg-[url(/heart.svg)] bg-contain bg-no-repeat" />
       ))}
     </ul>

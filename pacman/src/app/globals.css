@@ -117,3 +117,16 @@ body {
   border-radius: 0;
   background: #ffff00;
 }
+
+/*
+ * The play disc on the start overlay: the artwork is a bare triangle, so the
+ * disc itself is drawn here and the SVG sits inside it at 40%, nudged right of
+ * centre because a triangle's visual centre sits left of its box.
+ */
+.play {
+  /* Longhands, not the `background` shorthand: that would reset the disc's own colour. */
+  background-image: url("/playButton.svg");
+  background-repeat: no-repeat;
+  background-position: 60% center; /* a triangle's visual centre sits left of its box */
+  background-size: 40%;
+}

@@ -14,7 +14,7 @@ test("ghost picks the closest open tile and never reverses", () => {
 
 test("a ghost circling a 2x2 block breaks out via its trail", () => {
   // Scatter target top-right from the open pocket right of the house: pure greedy loops here.
-  let g: Ghost = { pos: { row: 10, col: 20 }, dir: [0, -1], out: true, trail: [], mode: "normal", acc: 0 };
+  let g: Ghost = { pos: { row: 10, col: 19 }, dir: [0, -1], out: true, trail: [], mode: "normal", acc: 0 };
   const seen = new Set<string>();
   for (let i = 0; i < 12; i++) {
     g = moveGhost(g, { row: 0, col: MAZE_COLS - 1 });

@@ -13,7 +13,7 @@ export const DOTS = {
  * only fruit, there's one level), appearing when the 70th and 170th dots are eaten.
  * Must be a PATH tile, so the cherry sits on a dot and can be walked onto.
  */
-export const FRUIT_SPAWN: Tile = { row: 18, col: 13 };
+export const FRUIT_SPAWN: Tile = { row: 18, col: 12 };
 export const FRUIT_AT = [70, 170];
 
 /** The fruit leaves the board after 9s if it isn't eaten. */

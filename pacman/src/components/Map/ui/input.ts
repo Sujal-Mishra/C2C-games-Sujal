@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NEW_GAME, TICK_MS, TURN_BUFFER, tick, type Dir } from "../game/index.ts";
-import { isMuted, sound } from "./audio.ts";
+import { isMuted, sound, stopAll } from "./audio.ts";
 
-/** The "not moving" direction, shared so `want.current === STOP` can spot the very first key press. */
+/** The "not moving" direction: what the sim is asked for while no movement key is down. */
 const STOP: Dir = [0, 0];
 
 const KEYS: Record<string, Dir> = {
@@ -22,8 +22,8 @@ const MAX_CATCH_UP_MS = 4 * TICK_MS;
 
 /**
  * Game state, advanced on a fixed step; the arrow keys / WASD set where Pac-Man
- * wants to go. The board waits for the first key, which plays the opening
- * jingle; ticking starts when it ends.
+ * wants to go. The board waits behind its play overlay until `start` is called,
+ * which plays the opening jingle; ticking starts when it ends.
  *
  * Input is modelled on the cabinet's joystick rather than on keystrokes: a held
  * key is a held stick, asking for that turn at every corner until let go, and a
@@ -38,9 +38,41 @@ const MAX_CATCH_UP_MS = 4 * TICK_MS;
  */
 export function useGame() {
   const [game, setGame] = useState(NEW_GAME);
+  const [started, setStarted] = useState(false);
   const want = useRef(STOP);
   const pressed = useRef(-Infinity); // performance.now() of the last press, for TURN_BUFFER
   const go = useRef(false);
+
+  /** Play the opening jingle; ticking starts when it ends. */
+  const open = useCallback(() => {
+    if (isMuted()) go.current = true; // nothing to listen to: don't sit out a silent jingle
+    else {
+      const jingle = sound("opening_song.mp3");
+      jingle.onended = () => (go.current = true);
+      jingle.play().catch(() => (go.current = true)); // audio blocked: just start
+    }
+  }, []);
+
+  /** Take the play overlay down and open the game. Ignored once running. */
+  const start = useCallback(() => {
+    if (started) return;
+    setStarted(true);
+    open();
+  }, [started, open]);
+
+  /**
+   * Deal a fresh board and put the play overlay back up: the play-again button on the end
+   * screens returns you to the board as it was before the first game, waiting on play,
+   * rather than setting anything running.
+   */
+  const restart = useCallback(() => {
+    stopAll(); // whatever the end of the last game left running shouldn't carry into the new board
+    setGame(NEW_GAME);
+    setStarted(false);
+    want.current = STOP;
+    pressed.current = -Infinity;
+    go.current = false; // nothing ticks again until the play button opens the next game
+  }, []);
 
   useEffect(() => {
     const held: string[] = []; // movement keys still down, oldest first: the newest is what's being asked for
@@ -49,14 +81,6 @@ export function useGame() {
       const k = e.key.toLowerCase();
       const d = KEYS[k];
       if (!d) return;
-      if (want.current === STOP) {
-        if (isMuted()) go.current = true; // nothing to listen to: don't sit out a silent jingle
-        else {
-          const jingle = sound("opening_song.mp3");
-          jingle.onended = () => (go.current = true);
-          jingle.play().catch(() => (go.current = true)); // audio blocked: just start
-        }
-      }
       if (!held.includes(k)) held.push(k); // key repeat fires keydown over and over while held
       want.current = d;
       pressed.current = performance.now();
@@ -94,5 +118,5 @@ export function useGame() {
     };
   }, []);
 
-  return game;
+  return { game, started, start, restart };
 }

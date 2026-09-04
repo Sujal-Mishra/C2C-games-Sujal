@@ -27,10 +27,10 @@ export const GHOST_SPAWN: Tile = tilesOf(CELL.GHOST_SPAWN)[0];
  * the way out, and ghosts do not collide, so it would visibly pass through it.
  */
 export const GHOSTS = [
-  { name: "blinky", tile: { row: 8, col: 11 }, door: { row: 8, col: 9 }, corner: { row: 0, col: MAZE_COLS - 1 } },
-  { name: "pinky", tile: { row: 8, col: 13 }, door: { row: 8, col: 9 }, corner: { row: 0, col: 0 } },
-  { name: "inky", tile: { row: 11, col: 13 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
-  { name: "clyde", tile: { row: 11, col: 11 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
+  { name: "blinky", tile: { row: 8, col: 10 }, door: { row: 8, col: 8 }, corner: { row: 0, col: MAZE_COLS - 1 } },
+  { name: "pinky", tile: { row: 8, col: 12 }, door: { row: 8, col: 8 }, corner: { row: 0, col: 0 } },
+  { name: "inky", tile: { row: 11, col: 12 }, door: { row: 11, col: 14 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
+  { name: "clyde", tile: { row: 11, col: 10 }, door: { row: 11, col: 14 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
 ];
 
 /**
