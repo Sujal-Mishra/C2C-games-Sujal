@@ -25,10 +25,22 @@ describe("piece body factory", () => {
 
     expect(body.circleRadius).toBe(0);
     expect(body.parts.length).toBeGreaterThan(2);
-    expect(width).toBeGreaterThan(85);
-    expect(height).toBeGreaterThan(100);
+    expect(width).toBeGreaterThan(65);
+    expect(height).toBeGreaterThan(80);
     expect(height).toBeGreaterThan(width);
   });
+
+  test.each(["petal", "origami", "lantern", "butterfly"] as const)(
+    "%s has approximately the logo's visual footprint",
+    (shape) => {
+      const logo = dimensions("logo");
+      const logoExtent = Math.max(logo.width, logo.height);
+      const piece = dimensions(shape);
+      const extent = Math.max(piece.width, piece.height);
+      expect(extent).toBeGreaterThan(logoExtent * 0.95);
+      expect(extent).toBeLessThan(logoExtent * 1.05);
+    }
+  );
 
   test("asset-specific colliders match their visible proportions", () => {
     const origami = dimensions("origami");

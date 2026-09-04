@@ -18,8 +18,6 @@ interface PiecePlugin {
   visualOffset: Vector;
 }
 
-const DISPLAY_WIDTH_FACTOR = 2.25;
-
 const MATERIALS: Record<ShapeType, IBodyDefinition> = {
   logo: {
     friction: 0.88,
@@ -131,7 +129,7 @@ const SVG_GEOMETRY: Record<ShapeType, SvgGeometry> = {
 
 function scaleGeometry(type: ShapeType): Vector[][] {
   const geometry = SVG_GEOMETRY[type];
-  const displayWidth = PIECE_STYLES[type].size * DISPLAY_WIDTH_FACTOR;
+  const displayWidth = PIECE_STYLES[type].renderWidth;
   const scale = displayWidth / geometry.width;
 
   return geometry.paths.map((path) => path.map(([sourceX, sourceY]) => ({
@@ -164,21 +162,6 @@ function polygonMetrics(vertices: readonly Vector[]): { area: number; centroid: 
   };
 }
 
-function getGeometryCentroid(paths: readonly Vector[][]): Vector {
-  let totalArea = 0;
-  let weightedX = 0;
-  let weightedY = 0;
-
-  for (const path of paths) {
-    const { area, centroid } = polygonMetrics(path);
-    totalArea += area;
-    weightedX += centroid.x * area;
-    weightedY += centroid.y * area;
-  }
-
-  return { x: weightedX / totalArea, y: weightedY / totalArea };
-}
-
 function getPlugin(body: Body): PiecePlugin {
   return body.plugin as PiecePlugin;
 }
@@ -206,8 +189,10 @@ export function setPieceVisualPosition(body: Body, x: number, y: number): void {
 export function createPhysicsBody(type: ShapeType, x: number, y: number, turn: QuarterTurn): Body {
   const style = PIECE_STYLES[type];
   const vertexSets = scaleGeometry(type);
-  const geometryCentroid = getGeometryCentroid(vertexSets);
-  const visualOffset = { x: -geometryCentroid.x, y: -geometryCentroid.y };
+  const initialPlugin: PiecePlugin = {
+    shapeType: type,
+    visualOffset: { x: 0, y: 0 }
+  };
   const options: IBodyDefinition = {
     ...MATERIALS[type],
     label: `piece:${type}`,
@@ -216,10 +201,25 @@ export function createPhysicsBody(type: ShapeType, x: number, y: number, turn: Q
       strokeStyle: style.stroke,
       lineWidth: 4
     },
-    plugin: { shapeType: type, visualOffset }
+    plugin: initialPlugin
   };
 
-  const body = Bodies.fromVertices(0, 0, vertexSets, options, true, 0.01, 1, 0.01);
+  const parts = vertexSets.flatMap((vertices) => {
+    const { centroid } = polygonMetrics(vertices);
+    const pathBody = Bodies.fromVertices(
+      centroid.x,
+      centroid.y,
+      [vertices],
+      options,
+      true,
+      0.01,
+      1,
+      0.01
+    );
+    return pathBody.parts.length > 1 ? pathBody.parts.slice(1) : [pathBody];
+  });
+  const body = parts.length === 1 ? parts[0] : Body.create({ ...options, parts });
+  const visualOffset = { x: -body.position.x, y: -body.position.y };
   body.plugin = { shapeType: type, visualOffset };
   Body.setAngle(body, turn * Math.PI / 2);
   setPieceVisualPosition(body, x, y);

@@ -6,15 +6,15 @@ export interface PieceStyle {
   fill: string;
   stroke: string;
   accent: string;
-  size: number;
+  renderWidth: number;
 }
 
 export const PIECE_STYLES: Record<ShapeType, PieceStyle> = {
-  logo: { fill: "#2c2c2c", stroke: "#f4b8d0", accent: "#d37fa2", size: 42 },
-  petal: { fill: "#d884a2", stroke: "#fbe2ec", accent: "#ffffff", size: 42 },
-  origami: { fill: "#d99a63", stroke: "#fbe2ec", accent: "#fff0dc", size: 42 },
-  lantern: { fill: "#e56f8f", stroke: "#ffd4df", accent: "#ffe3a8", size: 42 },
-  butterfly: { fill: "#8da9dc", stroke: "#e5edff", accent: "#f5b3cf", size: 42 }
+  logo: { fill: "#2c2c2c", stroke: "#f4b8d0", accent: "#d37fa2", renderWidth: 94 },
+  petal: { fill: "#d884a2", stroke: "#fbe2ec", accent: "#ffffff", renderWidth: 74 },
+  origami: { fill: "#d99a63", stroke: "#fbe2ec", accent: "#fff0dc", renderWidth: 124 },
+  lantern: { fill: "#e56f8f", stroke: "#ffd4df", accent: "#ffe3a8", renderWidth: 119 },
+  butterfly: { fill: "#8da9dc", stroke: "#e5edff", accent: "#f5b3cf", renderWidth: 102 }
 };
 
 export function createPieceBody(

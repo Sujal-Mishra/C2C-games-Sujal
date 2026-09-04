@@ -321,7 +321,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
             style={{
               left: `${(sprite.x / WORLD_WIDTH) * 100}%`,
               top: `${((sprite.y - cameraY) / WORLD_HEIGHT) * 100}%`,
-              width: `${((PIECE_STYLES[sprite.type].size * 2.25) / WORLD_WIDTH) * 100}%`,
+              width: `${(PIECE_STYLES[sprite.type].renderWidth / WORLD_WIDTH) * 100}%`,
               transform: `translate(-50%, -50%) rotate(${sprite.angle}rad)`
             }}
           />
