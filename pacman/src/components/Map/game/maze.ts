@@ -85,11 +85,27 @@ export function step(
 }
 
 /**
- * Arcade steering: turn into `want` the moment it's open, otherwise carry on in
- * `dir`, otherwise stop against the wall (keeping `dir` so the sprite still faces it).
+ * Resolve Pac-Man's next tile and facing from what the player wants and where
+ * he's already going.
+ *
+ * Arcade Pac-Man doesn't stop-and-turn: he keeps going until the wanted turn
+ * opens up, takes it instantly, and if nothing's open stops but keeps facing the
+ * way he was headed. `on` is where carrying straight on lands (null if that's a
+ * wall). `want` is taken only if it is a real direction, `step` finds it open,
+ * and it isn't a straight reversal — so he turns only where the maze offers a
+ * turn and never doubles back mid-corridor. A `want` of [0, 0] means "nothing
+ * asked for" (no key yet, or the press aged out — see TURN_BUFFER) and falls
+ * through to the same carry-on.
+ *
+ * Refusing the reversal is stricter than the arcade, where a 180 is always legal.
+ * The exception is `on === null` — nose against a wall, going nowhere — because a
+ * player who has just run into a wall and asks to go back is owed an answer;
+ * anywhere else he is moving, so "only at a turn" still holds.
  */
 export function advance(pos: Tile, want: Dir, dir: Dir): { pos: Tile; dir: Dir } {
-  const turned = step(pos.row, pos.col, ...want);
+  const on = step(pos.row, pos.col, ...dir);
+  const back = want[0] === -dir[0] && want[1] === -dir[1];
+  const turned = (want[0] || want[1]) && (!back || !on) ? step(pos.row, pos.col, ...want) : null;
   if (turned) return { pos: turned, dir: want };
-  return { pos: step(pos.row, pos.col, ...dir) ?? pos, dir };
+  return { pos: on ?? pos, dir };
 }

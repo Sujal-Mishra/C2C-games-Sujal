@@ -42,6 +42,14 @@ test("advance turns when it can, else keeps going, else stops", () => {
   assert.deepEqual(advance({ row: 1, col: 9 }, up, right), { pos: { row: 1, col: 9 }, dir: right });
 });
 
+test("advance refuses a mid-corridor reversal, but allows one off a wall", () => {
+  const right = [0, 1] as const, left = [0, -1] as const;
+  // (1,3) heading right with open track ahead: asking to double back is ignored.
+  assert.deepEqual(advance({ row: 1, col: 3 }, left, right), { pos: { row: 1, col: 4 }, dir: right });
+  // (1,9) heading right is nose-first into the wall at (1,10): now the turn-around is owed.
+  assert.deepEqual(advance({ row: 1, col: 9 }, left, right), { pos: { row: 1, col: 8 }, dir: left });
+});
+
 test("pac-man can't enter the ghost house", () => {
   assert.equal(step(8, 9, 0, 1), null);
   assert.equal(step(11, 15, 0, -1), null);

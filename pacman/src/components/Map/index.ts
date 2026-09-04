@@ -30,6 +30,8 @@ export {
   GHOST_SPAWN,
   GHOSTS,
   TICK_MS,
+  TURN_BUFFER,
+  SPEED,
   NEW_GAME,
   PACMAN_SPAWN,
 } from "./game/index.ts";

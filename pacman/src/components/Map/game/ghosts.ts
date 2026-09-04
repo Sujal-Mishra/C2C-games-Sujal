@@ -24,8 +24,9 @@ export const GHOSTS = [
 /**
  * `out`: has left the ghost house. `trail`: keys of the last few tiles, avoided so 2-wide corridors don't trap it in a loop.
  * `mode`: `scared` after a power pellet, `eyes` once eaten (running home to regenerate).
+ * `acc`: banked movement in tiles (0..1) — each tick adds this ghost's `SPEED` rate and it steps once a whole tile is banked.
  */
-export type Ghost = { pos: Tile; dir: Dir; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes" };
+export type Ghost = { pos: Tile; dir: Dir; out: boolean; trail: string[]; mode: "normal" | "scared" | "eyes"; acc: number };
 
 /** Dots eaten before each ghost leaves the house (level 1). */
 const RELEASE = [0, 0, 30, 60];
@@ -58,13 +59,16 @@ const TRAIL = 4;
 
 /**
  * Arcade ghost step: never reverse, take the open neighbour closest (straight
- * line) to `target`, ties broken up > left > down > right. `flip` reverses
- * first (mode change). A ghost that's out may not re-enter the house.
- * `target: null` is frightened: a random open direction instead.
- * Non-arcade: tiles in `trail` are taken only if nothing else is open.
+ * line) to `target`, ties broken up > left > down > right. A ghost that's out
+ * may not re-enter the house. `target: null` is frightened: a random open
+ * direction instead. Non-arcade: tiles in `trail` are taken only if nothing
+ * else is open.
+ *
+ * The mode-change reversal happens in `tick`, which flips `dir` before banking
+ * this ghost's speed — so a reversal costs a tile of travel like any other step.
  */
-export function moveGhost(g: Ghost, target: Tile | null, flip = false): Ghost {
-  const dir: Dir = flip ? [-g.dir[0], -g.dir[1]] : g.dir;
+export function moveGhost(g: Ghost, target: Tile | null): Ghost {
+  const dir: Dir = g.dir;
   const open = DIRS.flatMap((d) => {
     if (d[0] === -dir[0] && d[1] === -dir[1]) return [];
     const pos = step(g.pos.row, g.pos.col, d[0], d[1], !g.out);
@@ -100,12 +104,13 @@ function towards(from: Tile, to: Tile): Tile | null {
   return null;
 }
 
-/** Eyes run home at double speed and regenerate on their start tile, leaving the house again unfrightened. */
+/**
+ * One step of an eaten ghost's run home; it regenerates on its start tile and
+ * leaves the house again unfrightened. Speed comes from `SPEED.eyes` in `tick`,
+ * which only calls this once a whole tile is banked.
+ */
 export function goHome(gh: Ghost, i: number): Ghost {
-  for (let n = 0; n < 2; n++) {
-    if (key(gh.pos) === key(GHOSTS[i].tile)) return { ...gh, mode: "normal", out: false, trail: [] };
-    const pos = towards(gh.pos, GHOSTS[i].tile) ?? gh.pos;
-    gh = { ...gh, pos, dir: [Math.sign(pos.row - gh.pos.row), Math.sign(pos.col - gh.pos.col)] };
-  }
-  return gh;
+  if (key(gh.pos) === key(GHOSTS[i].tile)) return { ...gh, mode: "normal", out: false, trail: [] };
+  const pos = towards(gh.pos, GHOSTS[i].tile) ?? gh.pos;
+  return { ...gh, pos, dir: [Math.sign(pos.row - gh.pos.row), Math.sign(pos.col - gh.pos.col)] };
 }

@@ -62,3 +62,41 @@ body {
 .bob {
   animation: bob 1s ease-in-out infinite, bob-face 1s steps(1) infinite;
 }
+
+/*
+ * The volume slider: a chunky arcade meter rather than a rounded OS control.
+ * A native range input brings dragging, keyboard control and a screen-reader
+ * story for free; restyling its chrome is cheaper than rebuilding those three
+ * over a row of divs. `appearance: none` strips the OS look, then the track and
+ * thumb are redrawn per engine — the WebKit and Firefox rules cannot be merged,
+ * since an unknown selector voids the whole list. The track is a hard two-colour
+ * gradient with its stop at `--fill`, set inline from the current value.
+ */
+.volume {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.volume::-webkit-slider-runnable-track {
+  height: 6px;
+  background: linear-gradient(to right, #ffff00 var(--fill), #2121ff var(--fill));
+}
+.volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 6px;
+  height: 14px;
+  margin-top: -4px; /* centre the 14px thumb on the 6px track */
+  background: #ffff00;
+}
+.volume::-moz-range-track {
+  height: 6px;
+  background: linear-gradient(to right, #ffff00 var(--fill), #2121ff var(--fill));
+}
+.volume::-moz-range-thumb {
+  width: 6px;
+  height: 14px;
+  border: 0;
+  border-radius: 0;
+  background: #ffff00;
+}

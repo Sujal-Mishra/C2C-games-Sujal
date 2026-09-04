@@ -4,8 +4,42 @@ import { FRUIT_SPAWN, cleared, key, type Game } from "../game/index.ts";
 /** Every Audio element ever started through `sound`, so `stopAll` can silence the game in one go. */
 const playing = new Set<HTMLAudioElement>();
 
+/**
+ * Whether the player has silenced the game, and how loud it is otherwise.
+ *
+ * These live at module scope because `setMuted`/`setVolume` must reach sounds
+ * that don't exist yet — the siren created three minutes into a muted game has
+ * to come out silent too. `Map` mirrors both in state, which is what re-renders
+ * the controls. Kept as two values rather than one so un-muting returns you to
+ * the volume you had set rather than to full blast.
+ */
+let muted = false;
+let volume = 1;
+
+/**
+ * Silence or restore the game, now and for every sound made later.
+ *
+ * `.muted` rather than `.pause()`: the siren and chomp loops stay in step with
+ * the game while silent, so unmuting is instant and restarts nothing mid-note.
+ */
+export const setMuted = (on: boolean) => {
+  muted = on;
+  playing.forEach((a) => (a.muted = on));
+};
+
+/** Set the game's volume (0..1), now and for every sound made later. */
+export const setVolume = (v: number) => {
+  volume = v;
+  playing.forEach((a) => (a.volume = v));
+};
+
+/** True while the game is muted; read by `useGame` so a muted start doesn't wait out a silent jingle. */
+export const isMuted = () => muted;
+
 export const sound = (name: string) => {
   const a = new Audio(`/sounds/${name}`);
+  a.muted = muted; // born silent if the player has already hit mute
+  a.volume = volume;
   playing.add(a);
   a.addEventListener("ended", () => playing.delete(a)); // one-shots drop out once they finish
   return a;
@@ -19,9 +53,17 @@ export const stopAll = () => {
   playing.clear();
 };
 
+/**
+ * Ticks the chomp loop keeps playing after a dot. Ticks are frames now, and a
+ * dot lands every ~9 of them while eating, so "a dot this tick" alone would
+ * flicker between tiles; 12 bridges the gap without trailing on.
+ */
+const CHOMP_HOLD = 12;
+
 /** Arcade sounds off the change between ticks: one-shots for events, loops for the siren and chomping. */
 export function useSounds(game: Game) {
   const prev = useRef(game);
+  const ate = useRef(-Infinity); // tick of the last dot eaten
   const loops = useRef<Record<string, HTMLAudioElement>>({});
   useEffect(() => {
     const p = prev.current;
@@ -37,7 +79,9 @@ export function useSounds(game: Game) {
     if (game.bite && !p.bite) play("eatghost.mp3");
     if (game.fright > p.fright) play("eatpill.mp3");
     if (p.fruit && !game.fruit && key(game.pos) === key(FRUIT_SPAWN)) play("eatfruit.wav");
-    loop("eating.mp3", game.eaten.size > p.eaten.size);
+    if (game.t < p.t) ate.current = -Infinity; // a death reset the clock
+    if (game.eaten.size > p.eaten.size) ate.current = game.t;
+    loop("eating.mp3", game.t - ate.current < CHOMP_HOLD);
     loop("siren.mp3", game.t > 0 && game.lives > 0 && !cleared(game) && !game.bite); // ponytail: no separate frightened siren
   }, [game]);
   useEffect(() => () => Object.values(loops.current).forEach((a) => a.pause()), []);

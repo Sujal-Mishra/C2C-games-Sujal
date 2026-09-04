@@ -8,6 +8,8 @@ export const LIVES = 3;
 export type Game = {
   pos: Tile;
   dir: Dir;
+  /** Pac-Man's banked movement in tiles: he steps when it reaches 1. Goes negative after a dot (the arcade's per-dot stop). */
+  acc: number;
   eaten: Set<string>;
   /** Ticks the fruit stays on the board; 0 = no fruit out. */
   fruit: number;
@@ -39,12 +41,13 @@ export type Game = {
 export const NEW_GAME: Game = {
   pos: PACMAN_SPAWN,
   dir: [0, 0],
+  acc: 0,
   eaten: new Set(),
   fruit: 0,
   fruits: 0,
   idle: 0,
   freed: 0,
-  ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [], mode: "normal" })),
+  ghosts: GHOSTS.map((g) => ({ pos: g.tile, dir: [0, 0], out: false, trail: [], mode: "normal", acc: 0 })),
   t: 0,
   clock: 0,
   score: 0,
