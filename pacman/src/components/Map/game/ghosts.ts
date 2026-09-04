@@ -20,12 +20,17 @@ export const GHOST_SPAWN: Tile = tilesOf(CELL.GHOST_SPAWN)[0];
  * rather than the diagonal they used to sit in. A pocket's two ghosts must stay in
  * different columns — a waiting ghost bobs half a tile towards the pocket's other
  * row, so a shared column would have them drift into each other.
+ *
+ * Within a pocket the one released first sits nearer the door: Blinky before
+ * Pinky (0 and 7 dots after a death), Inky before Clyde (30 and 60). Seated the
+ * other way round the earlier ghost has to walk through its pocket-mate's tile on
+ * the way out, and ghosts do not collide, so it would visibly pass through it.
  */
 export const GHOSTS = [
-  { name: "blinky", tile: { row: 8, col: 13 }, door: { row: 8, col: 9 }, corner: { row: 0, col: MAZE_COLS - 1 } },
-  { name: "pinky", tile: { row: 8, col: 11 }, door: { row: 8, col: 9 }, corner: { row: 0, col: 0 } },
-  { name: "inky", tile: { row: 11, col: 11 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
-  { name: "clyde", tile: { row: 11, col: 13 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
+  { name: "blinky", tile: { row: 8, col: 11 }, door: { row: 8, col: 9 }, corner: { row: 0, col: MAZE_COLS - 1 } },
+  { name: "pinky", tile: { row: 8, col: 13 }, door: { row: 8, col: 9 }, corner: { row: 0, col: 0 } },
+  { name: "inky", tile: { row: 11, col: 13 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: MAZE_COLS - 1 } },
+  { name: "clyde", tile: { row: 11, col: 11 }, door: { row: 11, col: 15 }, corner: { row: MAZE_ROWS - 1, col: 0 } },
 ];
 
 /**

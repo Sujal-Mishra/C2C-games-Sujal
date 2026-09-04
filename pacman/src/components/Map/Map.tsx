@@ -88,7 +88,15 @@ export default function Map() {
           // Keyed on `out` rather than release, so the two ghosts released at 0 dots also bob until they actually leave.
           const down = MAZE[gh.pos.row + 1][gh.pos.col] === CELL.GHOST_HOUSE;
           const [go, back] = down ? ["down", "up"] : ["up", "down"];
-          const bob = { "--bob": down ? "50%" : "-50%", "--go": `url(/ghosts/${name}-${go}-0.svg)`, "--back": `url(/ghosts/${name}-${back}-1.svg)` };
+          // Half a cycle of delay on the second ghost of each pocket (GHOSTS lists a pocket's
+          // pair together, so those are the odd indexes) starts it at the far end of the drift:
+          // the two then pass each other, one rising as the other falls, faces included.
+          const bob = {
+            "--bob": down ? "50%" : "-50%",
+            "--go": `url(/ghosts/${name}-${go}-0.svg)`,
+            "--back": `url(/ghosts/${name}-${back}-1.svg)`,
+            animationDelay: i % 2 ? "-0.5s" : "0s",
+          };
           return <div key={name} className="sprite bob" style={{ ...at(gh.pos), ...bob } as React.CSSProperties} />;
         }
         // The ghost just eaten stays hidden behind its points during the freeze.
