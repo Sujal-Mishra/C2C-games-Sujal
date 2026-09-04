@@ -141,7 +141,9 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
     setPhase(dropPiece(phaseRef.current));
     Body.setStatic(body, false);
     Sleeping.set(body, false);
-    Body.setVelocity(body, { x: 0, y: 3 });
+    // Give the release a clear first frame on responsive boards; gravity
+    // continues the fall immediately after this initial impulse.
+    Body.setVelocity(body, { x: 0, y: 4 });
   }, [setPhase]);
 
   useImperativeHandle(ref, () => ({
@@ -334,7 +336,7 @@ export const GameCanvas = forwardRef<GameCanvasHandle, GameCanvasProps>(function
         <img
           className="platform-art"
           data-testid="platform-art"
-          src="/assets/sakura-stone-platform.png"
+          src="/assets/sakura-stone-platform.svg"
           alt=""
         />
       </div>

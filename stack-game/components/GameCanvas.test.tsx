@@ -19,7 +19,7 @@ test("creates an accessible playfield and reports readiness", async () => {
 
   expect(screen.getByRole("application", { name: /logo stack playfield/i })).toBeVisible();
   expect(screen.getByTestId("platform")).toBeVisible();
-  expect(screen.getByTestId("platform-art")).toHaveAttribute("src", "/assets/sakura-stone-platform.png");
+  expect(screen.getByTestId("platform-art")).toHaveAttribute("src", "/assets/sakura-stone-platform.svg");
   expect(screen.queryByTestId("platform-branch")).not.toBeInTheDocument();
   expect(screen.queryByTestId("platform-blossoms")).not.toBeInTheDocument();
   expect(document.querySelector(".clear-line")).not.toBeInTheDocument();

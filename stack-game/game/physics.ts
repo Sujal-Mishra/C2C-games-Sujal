@@ -93,12 +93,15 @@ const SVG_GEOMETRY: Record<ShapeType, SvgGeometry> = {
     ]]
   },
   lantern: {
-    width: 752,
-    height: 1099,
+    // sakura-stone-platform.svg / lantern.svg use a 520 x 620 viewBox.
+    // Keep this outline in that same coordinate space so the visible bottom
+    // of the lantern and its Matter.js support point line up.
+    width: 520,
+    height: 620,
     paths: [[
-      [154, 264], [174, 230], [276, 182], [366, 166], [440, 172],
-      [568, 224], [580, 252], [580, 342], [544, 644], [486, 692],
-      [425, 728], [354, 728], [288, 702], [222, 648], [170, 414]
+      [33, 124], [54, 90], [156, 42], [246, 26], [320, 32],
+      [448, 84], [460, 112], [460, 202], [424, 504], [366, 552],
+      [305, 588], [234, 588], [168, 562], [102, 508], [50, 274]
     ]]
   },
   butterfly: {
