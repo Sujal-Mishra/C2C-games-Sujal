@@ -10,28 +10,33 @@ type RoomType = "random" | "team";
 const rounds = [
   {
     label: "Mark of the moment",
-    hint: "Set the color that lives at the center.",
+    hint: "Set the color that lives at the top-left facet.",
     target: { hue: 338, saturation: 52, value: 72 },
+    targetFacetIndex: 0, // Top-Left
   },
   {
     label: "Neon snack",
-    hint: "Find the loudest shade in the mark.",
+    hint: "Find the shade for the main left facet.",
     target: { hue: 348, saturation: 67, value: 82 },
+    targetFacetIndex: 2, // Left
   },
   {
     label: "Quiet edge",
-    hint: "What color keeps the emblem grounded?",
-    target: { hue: 223, saturation: 13, value: 18 },
+    hint: "What color sets the top-right highlight?",
+    target: { hue: 223, saturation: 50, value: 75 },
+    targetFacetIndex: 1, // Top-Right
   },
   {
     label: "Soft spark",
-    hint: "Remember the lightest accent.",
+    hint: "Tune the bottom-left base shade.",
     target: { hue: 0, saturation: 38, value: 96 },
+    targetFacetIndex: 3, // Bottom-Left
   },
   {
     label: "Final flash",
-    hint: "Tune the color you noticed last.",
+    hint: "Tune the bottom-right finishing facet.",
     target: { hue: 330, saturation: 69, value: 86 },
+    targetFacetIndex: 4, // Bottom-Right
   },
 ];
 
@@ -174,7 +179,7 @@ function App() {
                 </span>
               </header>
 
-              {/* Center Stage with Targeted Vector Emblem */}
+              {/* Center Stage with Authentic "C" Emblem */}
               <div className="character-stage">
                 <div className="floor-spotlight" />
 
@@ -189,9 +194,12 @@ function App() {
                   <p className="hint-sub">{current.hint}</p>
                 </div>
 
-                {/* Targeted Emblem Showcase: Outer frame is static, ONLY target region changes fill */}
+                {/* Targeted "C" Emblem Showcase */}
                 <div className="emblem-card-showcase">
-                  <TargetedEmblemSVG color={guessHex} />
+                  <ChromaCLogoSVG
+                    targetColor={guessHex}
+                    targetIndex={current.targetFacetIndex}
+                  />
                 </div>
               </div>
 
@@ -279,54 +287,75 @@ function App() {
   );
 }
 
-/** Targeted Vector Emblem Component: Frame & outer facets remain static, target region changes fill */
-function TargetedEmblemSVG({ color }: { color: string }) {
+/** 
+ * Authentic Chroma Clash "C" Logo SVG
+ * Matches the official logo geometry & 5-facet structure.
+ * 4 facets stay visible in their authentic rose/magenta logo colors,
+ * while ONLY 1 target facet dynamically updates with targetColor!
+ */
+function ChromaCLogoSVG({
+  targetColor,
+  targetIndex = 0,
+}: {
+  targetColor: string;
+  targetIndex?: number;
+}) {
+  // Default authentic logo rose shades (matching kefb.png)
+  const defaultColors = [
+    "#d46a8c", // 0: Top-Left (mid rose)
+    "#e89ab3", // 1: Top-Right (blush pink highlight)
+    "#b44f76", // 2: Left (deep magenta rose)
+    "#c95c82", // 3: Bottom-Left (warm rose)
+    "#e085a3", // 4: Bottom-Right (soft rose)
+  ];
+
+  // Substitute ONLY the target facet with targetColor
+  const facetColors = defaultColors.map((c, i) =>
+    i === targetIndex ? targetColor : c
+  );
+
   return (
     <svg
-      width="130"
-      height="130"
+      width="135"
+      height="135"
       viewBox="0 0 120 120"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="targeted-emblem-svg"
+      className="chroma-c-logo-svg"
     >
-      {/* Outer Hexagon Border - STATIC WHITE & DARK PLUM */}
+      {/* Outer White Hexagon Sticker Border */}
       <polygon
-        points="60 6, 107 33, 107 87, 60 114, 13 87, 13 33"
-        fill="#1e1318"
+        points="60 5, 108 32, 108 88, 60 115, 12 88, 12 32"
+        fill="#ffffff"
         stroke="#ffffff"
-        strokeWidth="6"
+        strokeWidth="4"
         strokeLinejoin="round"
       />
 
-      {/* Inner Frame Ring - STATIC */}
+      {/* Inner Dark Charcoal Container Frame */}
       <polygon
-        points="60 14, 100 37, 100 83, 60 106, 20 83, 20 37"
-        fill="#0c0307"
-        stroke="#2d1b24"
-        strokeWidth="3"
+        points="60 11, 103 35, 103 85, 60 109, 17 85, 17 35"
+        fill="#2a2729"
+        stroke="#201d1f"
+        strokeWidth="2"
       />
 
-      {/* Static Facet 1: Top-Right (Neutral Dark) */}
-      <polygon points="60 60, 60 22, 93 41" fill="#44333c" />
+      {/* Facet 0: Top-Left (60,60 -> 22,38 -> 60,16) */}
+      <polygon points="60 60, 22 38, 60 16" fill={facetColors[0]} />
 
-      {/* Static Facet 2: Right (Neutral Mid) */}
-      <polygon points="60 60, 93 41, 93 79" fill="#5c4752" />
+      {/* Facet 1: Top-Right (60,60 -> 60,16 -> 98,38) */}
+      <polygon points="60 60, 60 16, 98 38" fill={facetColors[1]} />
 
-      {/* Static Facet 3: Bottom-Right (Neutral Dark) */}
-      <polygon points="60 60, 93 79, 60 98" fill="#2d2027" />
+      {/* Facet 2: Left (60,60 -> 22,82 -> 22,38) */}
+      <polygon points="60 60, 22 82, 22 38" fill={facetColors[2]} />
 
-      {/* Static Facet 4: Bottom-Left (Deep Shadow) */}
-      <polygon points="60 60, 60 98, 27 79" fill="#1b1217" />
+      {/* Facet 3: Bottom-Left (60,60 -> 60,104 -> 22,82) */}
+      <polygon points="60 60, 60 104, 22 82" fill={facetColors[3]} />
 
-      {/* Static Facet 5: Left (Shadow Neutral) */}
-      <polygon points="60 60, 27 79, 27 41" fill="#362830" />
+      {/* Facet 4: Bottom-Right (60,60 -> 98,82 -> 60,104) */}
+      <polygon points="60 60, 98 82, 60 104" fill={facetColors[4]} />
 
-      {/* DYNAMIC TARGET REGION (Center/Top-Left Facet) - TAKES GUESS COLOR ONLY! */}
-      <polygon points="60 60, 27 41, 60 22" fill={color} />
-
-      {/* Specular Center Accent */}
-      <circle cx="60" cy="60" r="3" fill="#ffffff" opacity="0.8" />
+      {/* Right Slice (60,60 -> 98,38 -> 98,82) is OPEN forming the "C" shape */}
     </svg>
   );
 }
