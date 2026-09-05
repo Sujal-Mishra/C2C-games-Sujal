@@ -330,6 +330,14 @@ body, html {
   transition: filter 0.15s ease, transform 0.2s ease;
 }
 
+.question-mark-img {
+  width: 142px;
+  max-height: 142px;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(4px 6px 0 rgba(7, 1, 3, 0.4));
+}
+
 /* Footer & Actions */
 .card-footer {
   display: flex;

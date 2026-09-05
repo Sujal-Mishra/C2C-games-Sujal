@@ -44,6 +44,8 @@ export function StageArea({
             logoId={currentRound.logoId}
             targetColor={guessHex}
             targetIndex={currentRound.targetFacetIndex}
+            source={currentRound.logoSource}
+            sourceColor={currentRound.sourceColor}
           />
         </div>
       </div>

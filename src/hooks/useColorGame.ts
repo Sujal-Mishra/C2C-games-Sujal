@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
 import { Mode, RoomType } from "../types/game.types";
-import { roundsData } from "../data/roundsData";
+import { chooseRandomRounds } from "../data/roundsData";
+import { RoundDefinition } from "../types/game.types";
 import { calculateRoundScore, hsvToHex, HsvColor } from "../game";
 
 export function useColorGame() {
   const [mode, setMode] = useState<Mode>("playing");
   const [roomType, setRoomType] = useState<RoomType>("random");
+  const [activeRounds, setActiveRounds] = useState<RoundDefinition[]>(chooseRandomRounds);
   const [round, setRound] = useState(0);
   const [scores, setScores] = useState<number[]>([]);
   const [hintsLeft, setHintsLeft] = useState(2);
@@ -21,10 +23,11 @@ export function useColorGame() {
     [scores]
   );
   
-  const currentRound = roundsData[round] || roundsData[0];
+  const currentRound = activeRounds[round] || activeRounds[0];
   const guessHex = useMemo(() => hsvToHex(guess), [guess]);
 
   const startGame = () => {
+    setActiveRounds(chooseRandomRounds());
     setRound(0);
     setScores([]);
     setGuess({ hue: 330, saturation: 65, value: 80 });
@@ -42,7 +45,7 @@ export function useColorGame() {
     const roundScore = calculateRoundScore(guess, currentRound.target);
     const nextScores = [...scores, roundScore];
     setShowHint(false);
-    if (round === roundsData.length - 1) {
+    if (round === activeRounds.length - 1) {
       setScores(nextScores);
       setMode("result");
     } else {
@@ -73,7 +76,7 @@ export function useColorGame() {
     setMode,
     roomType,
     round,
-    totalRounds: roundsData.length,
+    totalRounds: activeRounds.length,
     scores,
     totalScore,
     currentRound,

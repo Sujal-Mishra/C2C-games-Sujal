@@ -1,6 +1,7 @@
 import React from "react";
 import { LogoProps } from "../../types/game.types";
 import { C2CLogo } from "./C2CLogo";
+import { PixelColorLogo } from "./PixelColorLogo";
 
 /**
  * Registry mapping logo IDs to their dedicated SVG logo components.
@@ -8,7 +9,7 @@ import { C2CLogo } from "./C2CLogo";
  */
 const logoRegistry: Record<string, React.ComponentType<LogoProps>> = {
   "c2c-logo": C2CLogo,
-  // Future logos registered here...
+  "pixel-logo": PixelColorLogo,
 };
 
 export interface DynamicLogoProps extends LogoProps {
