@@ -1,8 +1,15 @@
-# OS
-.DS_Store
+# Dependencies
+node_modules
+.pnpm-store
 
-# Claude
-.claude/
-
-# next.js
+# Production build outputs
+dist
+build
 .next/
+
+# Environment & local files
+.env
+.env.local
+.DS_Store
+.claude/
+npm-debug.log*
