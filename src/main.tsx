@@ -100,7 +100,7 @@ function App() {
 
   return (
     <div className="page-wrapper">
-      {/* Outer top bar toggle consistent with Chroma Clash landing theme */}
+      {/* Outer top bar header */}
       <header className="theme-topbar">
         <div className="brand" onClick={() => setMode("lobby")}>
           <span className="brand-mark">C</span>
@@ -134,13 +134,13 @@ function App() {
         </nav>
       </header>
 
-      {/* Main compact card window rendered in Chroma Clash night-festival theme */}
+      {/* Main compact card window */}
       <main className="dialed-card-window chroma-theme-card">
         {mode === "playing" && (
           <div className="game-card-content">
             {/* Left Vertical Color Picker Sliders */}
             <aside className="vertical-color-picker" aria-label="Color Controls">
-              {/* Hue Slider (Full Rainbow) */}
+              {/* Hue Slider */}
               <VerticalSlider
                 value={guess.hue}
                 max={360}
@@ -156,7 +156,7 @@ function App() {
                 onChange={(saturation) => setGuess({ ...guess, saturation })}
               />
 
-              {/* Brightness / Value Slider */}
+              {/* Brightness Slider */}
               <VerticalSlider
                 value={guess.value}
                 max={100}
@@ -165,9 +165,8 @@ function App() {
               />
             </aside>
 
-            {/* Right Main Stage & Controls Area */}
+            {/* Right Main Stage */}
             <section className="stage-area">
-              {/* Top Header inside window */}
               <header className="card-header">
                 <span className="round-indicator">{round + 1} / 5</span>
                 <span className="brand-title" onClick={() => setMode("lobby")}>
@@ -175,36 +174,28 @@ function App() {
                 </span>
               </header>
 
-              {/* Center Emblem / Character Stage */}
+              {/* Center Stage with Targeted Vector Emblem */}
               <div className="character-stage">
-                {/* Floor Spotlight glow */}
                 <div className="floor-spotlight" />
 
-                {/* Optional Hint Banner */}
                 {showHint && (
                   <div className="hint-toast">
                     Target Hint: Hue ~{current.target.hue}°
                   </div>
                 )}
 
-                {/* Round Hint Label */}
                 <div className="round-hint-bar">
                   <span className="hint-label">{current.label}</span>
                   <p className="hint-sub">{current.hint}</p>
                 </div>
 
-                {/* Question Artwork Showcase */}
-                <div
-                  className="emblem-card-showcase"
-                  style={{
-                    filter: `hue-rotate(${guess.hue - 330}deg) saturate(${guess.saturation / 65}) brightness(${guess.value / 80})`,
-                  }}
-                >
-                  <img src="/kefb.png" alt="Question Emblem" className="question-mark-img" />
+                {/* Targeted Emblem Showcase: Outer frame is static, ONLY target region changes fill */}
+                <div className="emblem-card-showcase">
+                  <TargetedEmblemSVG color={guessHex} />
                 </div>
               </div>
 
-              {/* Bottom Action Controls */}
+              {/* Bottom Controls */}
               <footer className="card-footer">
                 <div className="hex-display">
                   <span>HEX</span>
@@ -285,6 +276,58 @@ function App() {
         )}
       </main>
     </div>
+  );
+}
+
+/** Targeted Vector Emblem Component: Frame & outer facets remain static, target region changes fill */
+function TargetedEmblemSVG({ color }: { color: string }) {
+  return (
+    <svg
+      width="130"
+      height="130"
+      viewBox="0 0 120 120"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="targeted-emblem-svg"
+    >
+      {/* Outer Hexagon Border - STATIC WHITE & DARK PLUM */}
+      <polygon
+        points="60 6, 107 33, 107 87, 60 114, 13 87, 13 33"
+        fill="#1e1318"
+        stroke="#ffffff"
+        strokeWidth="6"
+        strokeLinejoin="round"
+      />
+
+      {/* Inner Frame Ring - STATIC */}
+      <polygon
+        points="60 14, 100 37, 100 83, 60 106, 20 83, 20 37"
+        fill="#0c0307"
+        stroke="#2d1b24"
+        strokeWidth="3"
+      />
+
+      {/* Static Facet 1: Top-Right (Neutral Dark) */}
+      <polygon points="60 60, 60 22, 93 41" fill="#44333c" />
+
+      {/* Static Facet 2: Right (Neutral Mid) */}
+      <polygon points="60 60, 93 41, 93 79" fill="#5c4752" />
+
+      {/* Static Facet 3: Bottom-Right (Neutral Dark) */}
+      <polygon points="60 60, 93 79, 60 98" fill="#2d2027" />
+
+      {/* Static Facet 4: Bottom-Left (Deep Shadow) */}
+      <polygon points="60 60, 60 98, 27 79" fill="#1b1217" />
+
+      {/* Static Facet 5: Left (Shadow Neutral) */}
+      <polygon points="60 60, 27 79, 27 41" fill="#362830" />
+
+      {/* DYNAMIC TARGET REGION (Center/Top-Left Facet) - TAKES GUESS COLOR ONLY! */}
+      <polygon points="60 60, 27 41, 60 22" fill={color} />
+
+      {/* Specular Center Accent */}
+      <circle cx="60" cy="60" r="3" fill="#ffffff" opacity="0.8" />
+    </svg>
   );
 }
 
