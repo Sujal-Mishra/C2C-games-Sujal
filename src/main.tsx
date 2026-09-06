@@ -5,6 +5,7 @@ import { TopHeader } from "./components/game/TopHeader";
 import { GameWindow } from "./components/game/GameWindow";
 import { LobbyView } from "./components/views/LobbyView";
 import { ResultView } from "./components/views/ResultView";
+import { SakuraLanternsBackground } from "./components/ui/SakuraLanternsBackground";
 import "./styles.css";
 import "./theme.css";
 
@@ -13,6 +14,9 @@ function App() {
 
   return (
     <div className="page-wrapper">
+      {/* Background Animated Petals & Lanterns */}
+      <SakuraLanternsBackground />
+
       {/* Top Header Navigation */}
       <TopHeader
         mode={game.mode}
@@ -20,23 +24,28 @@ function App() {
         onSelectMode={game.setMode}
       />
 
-      {/* Compact Card Window */}
+      {/* Main Game Card Window inside Signature C2C Frame */}
       <main className="dialed-card-window c2c-theme-card">
         {game.mode === "playing" && (
           <GameWindow
             currentRound={game.currentRound}
             roundIndex={game.round}
             totalRounds={game.totalRounds}
-            showHint={game.showHint}
-            hintsLeft={game.hintsLeft}
+            subPhase={game.subPhase}
+            countdownStep={game.countdownStep}
+            memorizeTimeLeft={game.memorizeTimeLeft}
+            targetHex={game.targetHex}
             guess={game.guess}
             guessHex={game.guessHex}
             satPureHex={game.satPureHex}
             valBrightHex={game.valBrightHex}
+            showHint={game.showHint}
+            hintsLeft={game.hintsLeft}
+            lastRoundScore={game.lastRoundScore}
             onSetGuess={game.setGuess}
             onTriggerHint={game.triggerHint}
             onSubmitGuess={game.submitGuess}
-            onGoLobby={() => game.setMode("lobby")}
+            onAdvanceToNextRound={game.advanceToNextRound}
           />
         )}
 

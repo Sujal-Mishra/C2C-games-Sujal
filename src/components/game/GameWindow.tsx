@@ -1,94 +1,106 @@
 import React from "react";
-import { RoundDefinition } from "../../types/game.types";
+import { RoundDefinition, RoundSubPhase, CountdownStep } from "../../types/game.types";
 import { HsvColor } from "../../game";
-import { VerticalSlider } from "./VerticalSlider";
-import { StageArea } from "./StageArea";
-import { FooterControls } from "./FooterControls";
+import { CountdownPhase } from "./CountdownPhase";
+import { MemorizePhase } from "./MemorizePhase";
+import { MatchPhase } from "./MatchPhase";
+import { RoundFeedbackPhase } from "./RoundFeedbackPhase";
 
 interface GameWindowProps {
   currentRound: RoundDefinition;
   roundIndex: number;
   totalRounds: number;
-  showHint: boolean;
-  hintsLeft: number;
+  subPhase: RoundSubPhase;
+  countdownStep: CountdownStep;
+  memorizeTimeLeft: number;
+  targetHex: string;
   guess: HsvColor;
   guessHex: string;
   satPureHex: string;
   valBrightHex: string;
+  showHint: boolean;
+  hintsLeft: number;
+  lastRoundScore: number | null;
   onSetGuess: (guess: HsvColor) => void;
   onTriggerHint: () => void;
   onSubmitGuess: () => void;
-  onGoLobby: () => void;
+  onAdvanceToNextRound: () => void;
 }
 
 export function GameWindow({
   currentRound,
   roundIndex,
   totalRounds,
-  showHint,
-  hintsLeft,
+  subPhase,
+  countdownStep,
+  memorizeTimeLeft,
+  targetHex,
   guess,
   guessHex,
   satPureHex,
   valBrightHex,
+  showHint,
+  hintsLeft,
+  lastRoundScore,
   onSetGuess,
   onTriggerHint,
   onSubmitGuess,
-  onGoLobby,
+  onAdvanceToNextRound,
 }: GameWindowProps) {
-  return (
-    <div className="game-card-content">
-      {/* Left Vertical Color Picker Sliders with Visual Target Hint overlays */}
-      <aside className="vertical-color-picker" aria-label="Color Controls">
-        <VerticalSlider
-          value={guess.hue}
-          max={360}
-          background="linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)"
-          onChange={(hue) => onSetGuess({ ...guess, hue })}
-          showHint={showHint}
-          targetHintValue={currentRound.target.hue}
-          hintType="hue"
-        />
+  if (subPhase === "countdown") {
+    return (
+      <CountdownPhase
+        roundIndex={roundIndex}
+        totalRounds={totalRounds}
+        step={countdownStep}
+      />
+    );
+  }
 
-        <VerticalSlider
-          value={guess.saturation}
-          max={100}
-          background={`linear-gradient(to bottom, #fff5f7 0%, ${satPureHex} 50%, #210a13 100%)`}
-          onChange={(saturation) => onSetGuess({ ...guess, saturation })}
-          showHint={showHint}
-          targetHintValue={currentRound.target.saturation}
-          hintType="sat"
-        />
+  if (subPhase === "memorize") {
+    return (
+      <MemorizePhase
+        roundIndex={roundIndex}
+        totalRounds={totalRounds}
+        targetHex={targetHex}
+        timeLeft={memorizeTimeLeft}
+      />
+    );
+  }
 
-        <VerticalSlider
-          value={guess.value}
-          max={100}
-          background={`linear-gradient(to bottom, ${valBrightHex} 0%, #310d1d 60%, #0c0307 100%)`}
-          onChange={(value) => onSetGuess({ ...guess, value })}
-          showHint={showHint}
-          targetHintValue={currentRound.target.value}
-          hintType="val"
-        />
-      </aside>
+  if (subPhase === "match") {
+    return (
+      <MatchPhase
+        currentRound={currentRound}
+        roundIndex={roundIndex}
+        totalRounds={totalRounds}
+        guess={guess}
+        guessHex={guessHex}
+        satPureHex={satPureHex}
+        valBrightHex={valBrightHex}
+        showHint={showHint}
+        hintsLeft={hintsLeft}
+        onSetGuess={onSetGuess}
+        onTriggerHint={onTriggerHint}
+        onSubmitGuess={onSubmitGuess}
+      />
+    );
+  }
 
-      {/* Right Main Stage & Controls */}
-      <div className="stage-area-wrapper" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <StageArea
-          currentRound={currentRound}
-          roundIndex={roundIndex}
-          totalRounds={totalRounds}
-          showHint={showHint}
-          guessHex={guessHex}
-          onGoLobby={onGoLobby}
-        />
-        <FooterControls
-          guessHex={guessHex}
-          hintsLeft={hintsLeft}
-          showHint={showHint}
-          onTriggerHint={onTriggerHint}
-          onSubmitGuess={onSubmitGuess}
-        />
-      </div>
-    </div>
-  );
+  if (subPhase === "feedback") {
+    return (
+      <RoundFeedbackPhase
+        roundIndex={roundIndex}
+        totalRounds={totalRounds}
+        score={lastRoundScore ?? 0}
+        targetHex={targetHex}
+        guessHex={guessHex}
+        targetHsv={currentRound.target}
+        guessHsv={guess}
+        onNextRound={onAdvanceToNextRound}
+      />
+    );
+  }
+
+  return null;
 }

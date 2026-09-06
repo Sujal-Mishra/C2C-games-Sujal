@@ -4,6 +4,9 @@ export type Mode = "lobby" | "playing" | "result";
 export type RoomType = "random" | "team";
 export type SourceColor = "red-orange" | "blue" | "purple" | "teal" | "pink" | "green";
 
+export type RoundSubPhase = "countdown" | "memorize" | "match" | "feedback";
+export type CountdownStep = "ready" | "blank1" | "set" | "blank2" | "go" | "done";
+
 export interface RoundDefinition {
   id: string;
   label: string;
@@ -24,3 +27,4 @@ export interface LogoProps {
   source?: string;
   sourceColor?: SourceColor;
 }
+

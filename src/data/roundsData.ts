@@ -8,7 +8,7 @@ const roundPool: RoundDefinition[] = [
     target: { hue: 338, saturation: 52, value: 72 },
     logoId: "pixel-logo",
     logoSource: "/color-change-logo.png",
-    sourceColor: "red-orange",
+    sourceColor: "pink",
   },
   {
     id: "round-2",
@@ -53,11 +53,42 @@ const roundPool: RoundDefinition[] = [
   { id: "round-10", label: "Green wordmark", hint: "Match the green Acer lettering.", target: { hue: 78, saturation: 92, value: 73 }, logoId: "pixel-logo", logoSource: "/acer-green-logo.png", sourceColor: "green" },
 ];
 
-export function chooseRandomRounds() {
-  const shuffled = [...roundPool];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
-  }
-  return shuffled.slice(0, 5);
+export function chooseRandomRounds(): RoundDefinition[] {
+  // Pink targets pool for Q1 & Q2
+  const pinkTargets = [
+    { hue: 335, saturation: 65, value: 85 }, // Soft Rose Pink
+    { hue: 345, saturation: 78, value: 90 }, // Vibrant Magenta Pink
+    { hue: 325, saturation: 60, value: 80 }, // Deep Berry Pink
+    { hue: 350, saturation: 72, value: 88 }, // Cherry Blossom Pink
+    { hue: 330, saturation: 65, value: 80 }, // Classic C2C Pink
+  ];
+
+  // Shuffle pink targets so Q1 and Q2 get different pink gradients
+  const shuffledPinks = [...pinkTargets].sort(() => Math.random() - 0.5);
+
+  const q1: RoundDefinition = {
+    id: "round-1",
+    label: "Pink Memory I",
+    hint: "Memorize this pink shade.",
+    target: shuffledPinks[0],
+    logoId: "pixel-logo",
+    logoSource: "/color-change-logo.png",
+    sourceColor: "pink",
+  };
+
+  const q2: RoundDefinition = {
+    id: "round-2",
+    label: "Pink Memory II",
+    hint: "Memorize this pink shade.",
+    target: shuffledPinks[1],
+    logoId: "pixel-logo",
+    logoSource: "/pink-connector-logo.png",
+    sourceColor: "pink",
+  };
+
+  // Other colors for Q3, Q4, and Q5
+  const nonPinkPool = roundPool.filter((r) => r.sourceColor !== "pink");
+  const shuffledOthers = [...nonPinkPool].sort(() => Math.random() - 0.5);
+
+  return [q1, q2, shuffledOthers[0], shuffledOthers[1], shuffledOthers[2]];
 }
